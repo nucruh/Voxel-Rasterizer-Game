@@ -5,12 +5,12 @@ public static class MeshUtility
 {
     static readonly float[] CubeVertices =
     {
-        -1,-1,-1,  1,-1,-1,  1, 1,-1,  -1,-1,-1,  1, 1,-1,  -1, 1,-1,
-        -1,-1, 1,  1, 1, 1,  1,-1, 1,  -1,-1, 1, -1, 1, 1,   1, 1, 1,
-        -1,-1,-1, -1, 1,-1, -1, 1, 1,  -1,-1,-1, -1, 1, 1,  -1,-1, 1,
-         1,-1,-1,  1,-1, 1,  1, 1, 1,   1,-1,-1,  1, 1, 1,   1, 1,-1,
-        -1, 1,-1,  1, 1,-1,  1, 1, 1,  -1, 1,-1,  1, 1, 1,  -1, 1, 1,
-        -1,-1,-1,  1,-1, 1,  1,-1,-1,  -1,-1,-1, -1,-1, 1,   1,-1, 1,
+        -0.5f,-0.5f,-0.5f,  0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f,  -0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f,  -0.5f, 0.5f,-0.5f,
+        -0.5f,-0.5f, 0.5f,  0.5f, 0.5f, 0.5f,  0.5f,-0.5f, 0.5f,  -0.5f,-0.5f, 0.5f, -0.5f, 0.5f, 0.5f,   0.5f, 0.5f, 0.5f,
+        -0.5f,-0.5f,-0.5f, -0.5f, 0.5f,-0.5f, -0.5f, 0.5f, 0.5f,  -0.5f,-0.5f,-0.5f, -0.5f, 0.5f, 0.5f,  -0.5f,-0.5f, 0.5f,
+         0.5f,-0.5f,-0.5f,  0.5f,-0.5f, 0.5f,  0.5f, 0.5f, 0.5f,   0.5f,-0.5f,-0.5f,  0.5f, 0.5f, 0.5f,   0.5f, 0.5f,-0.5f,
+        -0.5f, 0.5f,-0.5f,  0.5f, 0.5f,-0.5f,  0.5f, 0.5f, 0.5f,  -0.5f, 0.5f,-0.5f,  0.5f, 0.5f, 0.5f,  -0.5f, 0.5f, 0.5f,
+        -0.5f,-0.5f,-0.5f,  0.5f,-0.5f, 0.5f,  0.5f,-0.5f,-0.5f,  -0.5f,-0.5f,-0.5f, -0.5f,-0.5f, 0.5f,   0.5f,-0.5f, 0.5f,
     };
 
     public static void AddVertex(List<float> v, Vector3 p, Vector2 uv)
@@ -21,12 +21,12 @@ public static class MeshUtility
     // Upright, unmirrored UV (0..1) for a cube face seen from outside.
     public static Vector2 FaceUV(int face, Vector3 p) => face switch
     {
-        0 => new Vector2((1 - p.X) / 2, (p.Y + 1) / 2), // back
-        1 => new Vector2((p.X + 1) / 2, (p.Y + 1) / 2), // front
-        2 => new Vector2((p.Z + 1) / 2, (p.Y + 1) / 2), // left
-        3 => new Vector2((1 - p.Z) / 2, (p.Y + 1) / 2), // right
-        4 => new Vector2((p.X + 1) / 2, (1 - p.Z) / 2), // top
-        _ => new Vector2((p.X + 1) / 2, (p.Z + 1) / 2), // bottom
+        0 => new Vector2(0.5f - p.X, p.Y + 0.5f), // back
+        1 => new Vector2(p.X + 0.5f, p.Y + 0.5f), // front
+        2 => new Vector2(p.Z + 0.5f, p.Y + 0.5f), // left
+        3 => new Vector2(0.5f - p.Z, p.Y + 0.5f), // right
+        4 => new Vector2(p.X + 0.5f, 0.5f - p.Z), // top
+        _ => new Vector2(p.X + 0.5f, p.Z + 0.5f), // bottom
     };
 
     public static void AddCube(List<float> v, Vector3 offset, string[] faceTextures, TextureAtlas _atlas)
@@ -49,5 +49,10 @@ public static class MeshUtility
 
         for (int i = 0; i < 6; i++)
             AddVertex(v, pos[i] + offset, _atlas.Map(_atlas.Id(texture), uv[i]));
+    }
+
+    public static int GetTotalTriangles(Mesh[] meshes)
+    {
+        return meshes.Sum(m => m.TriangleCount);
     }
 }

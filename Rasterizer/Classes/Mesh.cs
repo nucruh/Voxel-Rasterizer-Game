@@ -6,6 +6,8 @@ public class Mesh : IDisposable
     private readonly int _vbo;
     private readonly int _vertexCount;
 
+    public int TriangleCount => _vertexCount / 3;
+
     public Mesh(float[] vertices)
     {
         _vertexCount = vertices.Length / 8;

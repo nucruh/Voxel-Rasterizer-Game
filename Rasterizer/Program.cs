@@ -15,7 +15,7 @@ class Game : GameWindow
 {
 
     Shader _shader = null!;
-    Mesh _mesh = null!;
+    List<Mesh> _sceneObjects = new List<Mesh>();
     Camera _camera = null!;
     TextureAtlas _atlas = null!;
     //float _rotation;
@@ -24,12 +24,12 @@ class Game : GameWindow
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(1280, 720),
-            Location = SystemInfo.screenCenter - new Vector2i(640, 360),
+            ClientSize = new Vector2i(3440, 1440),
+            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(3, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.On,
+            Vsync = VSyncMode.Off,
             WindowBorder = WindowBorder.Hidden
         })
     {
@@ -48,7 +48,7 @@ class Game : GameWindow
         _camera = new Camera(new Vector3(3, 2, 4), Vector3.Zero);
         CursorState = CursorState.Grabbed;
 
-        GL.ClearColor(0.08f, 0.09f, 0.12f, 1f);
+        //GL.ClearColor(0.08f, 0.09f, 0.12f, 1f);
         GL.Enable(EnableCap.DepthTest);
 
         _shader = new Shader(
@@ -57,23 +57,16 @@ class Game : GameWindow
 
         _atlas = new TextureAtlas("Textures", TextureNames.Names);
 
-        // Face order: Back, Front, Left, Right, Top, Bottom
-        string[][] cubes =
-        {
-            new[] { "stone", "stone", "stone", "stone", "stone", "stone"},
-            new[] { "dirt", "dirt", "dirt", "dirt", "dirt", "dirt" },
-            new[] { "grass_side", "grass_side", "grass_side", "grass_side", "grass_top", "dirt" },
-            new[] { "planks", "planks", "planks", "planks", "planks", "planks" },
-        };
+        for(int x = 0; x < 8; x++)
+            for(int z = 0; z < 8; z++)
+            {
+                Chunk c = new Chunk(new Vector3(x * Chunk.Size, 0, z * Chunk.Size));
+                c.Generate();
+                c.CreateMesh(_atlas);
 
-        var v = new List<float>();
+                _sceneObjects.Add(c.mesh!);
+            }
 
-        for (int c = 0; c < 4; c++)
-            AddCube(v, new Vector3((c % 2) * 4f, (c / 2) * 4f, 0), cubes[c], _atlas);
-
-        AddQuad(v, new Vector3(1, 0, 0), new Vector3(2.4f, 1.2f, -0.3f), "stone", _atlas);
-
-        _mesh = new Mesh(v.ToArray());
     }
 
 
@@ -143,10 +136,10 @@ class Game : GameWindow
         Matrix4 model = Matrix4.CreateRotationY(0f);
         Matrix4 view = _camera.GetViewMatrix();
         Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
-            MathHelper.DegreesToRadians(60f),
+            MathHelper.DegreesToRadians(70f),
             Size.X / (float)Math.Max(Size.Y, 1),
             0.1f,
-            100f);
+            1000f);
 
         _shader.SetMatrix4("model", model);
         _shader.SetMatrix4("view", view);
@@ -155,12 +148,15 @@ class Game : GameWindow
         _atlas.Bind();
         _shader.SetInt("atlas", 0);
 
-        _mesh.Draw();
+        foreach (var mesh in _sceneObjects)
+            mesh.Draw();
 
         float marginScaleX = (float)(GlyphPixelW + TextScale) / ClientSize.X;
         float marginScaleY = (float)(GlyphPixelH + TextScale * 2) / ClientSize.Y;
 
         string data = $"FPS : {Math.Round(lastFps, 0)}\n" +
+            $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray())/1000:f1}k\n" +
+            $"Draw calls: {_sceneObjects.Count}\n" +
             $"Screen : {ClientSize.X} x {ClientSize.Y}";
 
         // 2D overlay state
@@ -181,7 +177,8 @@ class Game : GameWindow
 
     protected override void OnUnload()
     {
-        _mesh.Dispose();
+        foreach (var mesh in _sceneObjects)
+            mesh.Dispose();
         _atlas.Dispose();
         _shader.Dispose();
         base.OnUnload();
