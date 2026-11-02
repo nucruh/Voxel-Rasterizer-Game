@@ -29,17 +29,17 @@ public static class MeshUtility
         _ => new Vector2((p.X + 1) / 2, (p.Z + 1) / 2), // bottom
     };
 
-    public static void AddCube(List<float> v, Vector3 offset, int[] faceTextures, TextureAtlas _atlas)
+    public static void AddCube(List<float> v, Vector3 offset, string[] faceTextures, TextureAtlas _atlas)
     {
         for (int i = 0; i < 36; i++)
         {
             int face = i / 6;
             Vector3 p = new(CubeVertices[i * 3], CubeVertices[i * 3 + 1], CubeVertices[i * 3 + 2]);
-            AddVertex(v, p + offset, _atlas.Map(faceTextures[face], FaceUV(face, p)));
+            AddVertex(v, p + offset, _atlas.Map(_atlas.Id(faceTextures[face]), FaceUV(face, p)));
         }
     }
 
-    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture, TextureAtlas _atlas)
+    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, string texture, TextureAtlas _atlas)
     {
         Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, look));
         Vector3 up = Vector3.Normalize(Vector3.Cross(look, right));
@@ -48,6 +48,6 @@ public static class MeshUtility
         Vector2[] uv = { new(0, 0), new(0, 1), new(1, 1), new(0, 0), new(1, 1), new(1, 0) };
 
         for (int i = 0; i < 6; i++)
-            AddVertex(v, pos[i] + offset, _atlas.Map(texture, uv[i]));
+            AddVertex(v, pos[i] + offset, _atlas.Map(_atlas.Id(texture), uv[i]));
     }
 }

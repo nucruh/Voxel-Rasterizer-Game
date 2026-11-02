@@ -13,8 +13,6 @@ game.Run();
 
 class Game : GameWindow
 {
-    // Index in this list = texture id. Loads Textures/<name>.png (32x32).
-    static readonly string[] TextureNames = { "stone"};
 
     Shader _shader = null!;
     Mesh _mesh = null!;
@@ -27,10 +25,12 @@ class Game : GameWindow
         new NativeWindowSettings
         {
             ClientSize = new Vector2i(1280, 720),
+            Location = SystemInfo.screenCenter - new Vector2i(640, 360),
             Title = "Rasterizer",
             APIVersion = new Version(3, 3),
             Profile = ContextProfile.Core,
             Vsync = VSyncMode.On,
+            WindowBorder = WindowBorder.Hidden
         })
     {
     }
@@ -38,6 +38,10 @@ class Game : GameWindow
     protected override void OnLoad()
     {
         base.OnLoad();
+
+        SystemInfo.gpuVendor = GL.GetString(StringName.Vendor);
+        SystemInfo.gpuRenderer = GL.GetString(StringName.Renderer);
+        SystemInfo.glslVersion = GL.GetString(StringName.ShadingLanguageVersion);
 
         InitTextRendering(ClientSize.X, ClientSize.Y);
 
@@ -51,18 +55,15 @@ class Game : GameWindow
             File.ReadAllText("Shaders/main.vert"),
             File.ReadAllText("Shaders/main.frag"));
 
-        _atlas = new TextureAtlas("Textures", TextureNames);
-
-        int stone = _atlas.Id("stone"), dirt = _atlas.Id("dirt"), planks = _atlas.Id("planks");
-        int grassTop = _atlas.Id("grass_top"), grassSide = _atlas.Id("grass_side");
+        _atlas = new TextureAtlas("Textures", TextureNames.Names);
 
         // Face order: Back, Front, Left, Right, Top, Bottom
-        int[][] cubes =
+        string[][] cubes =
         {
-            new[] { stone, stone, stone, stone, stone, stone },
-            new[] { dirt, dirt, dirt, dirt, dirt, dirt },
-            new[] { grassSide, grassSide, grassSide, grassSide, grassTop, dirt },
-            new[] { planks, planks, planks, planks, planks, planks },
+            new[] { "stone", "stone", "stone", "stone", "stone", "stone"},
+            new[] { "dirt", "dirt", "dirt", "dirt", "dirt", "dirt" },
+            new[] { "grass_side", "grass_side", "grass_side", "grass_side", "grass_top", "dirt" },
+            new[] { "planks", "planks", "planks", "planks", "planks", "planks" },
         };
 
         var v = new List<float>();
@@ -70,11 +71,10 @@ class Game : GameWindow
         for (int c = 0; c < 4; c++)
             AddCube(v, new Vector3((c % 2) * 4f, (c / 2) * 4f, 0), cubes[c], _atlas);
 
-        AddQuad(v, new Vector3(1, 0, 0), new Vector3(2.4f, 1.2f, -0.3f), stone, _atlas);
+        AddQuad(v, new Vector3(1, 0, 0), new Vector3(2.4f, 1.2f, -0.3f), "stone", _atlas);
 
         _mesh = new Mesh(v.ToArray());
     }
-
 
 
     protected override void OnResize(ResizeEventArgs e)
@@ -89,8 +89,6 @@ class Game : GameWindow
 
         if (KeyboardState.IsKeyDown(Keys.Escape))
             Close();
-
-        //_rotation += (float)e.Time;
 
         if (!IsFocused)
             return;
