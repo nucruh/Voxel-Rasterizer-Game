@@ -31,6 +31,7 @@ public static class UiRenderQueue
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         GL.Disable(EnableCap.DepthTest);
+        GL.Disable(EnableCap.CullFace);
 
         foreach (var item in _items)
             item.Draw();

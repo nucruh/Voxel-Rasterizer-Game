@@ -3,8 +3,8 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using StbImageSharp;
 using static BitmapFontRenderer;
+using static MeshUtility;
 
 using GameWindow = OpenTK.Windowing.Desktop.GameWindow;
 
@@ -20,7 +20,7 @@ class Game : GameWindow
     Mesh _mesh = null!;
     Camera _camera = null!;
     TextureAtlas _atlas = null!;
-    float _rotation;
+    //float _rotation;
 
     public Game() : base(
         GameWindowSettings.Default,
@@ -68,50 +68,14 @@ class Game : GameWindow
         var v = new List<float>();
 
         for (int c = 0; c < 4; c++)
-            AddCube(v, new Vector3((c % 2) * 4f, (c / 2) * 4f, 0), cubes[c]);
+            AddCube(v, new Vector3((c % 2) * 4f, (c / 2) * 4f, 0), cubes[c], _atlas);
 
-        AddQuad(v, new Vector3(1, 0, 0), new Vector3(2.4f, 1.2f, -0.3f), stone);
+        AddQuad(v, new Vector3(1, 0, 0), new Vector3(2.4f, 1.2f, -0.3f), stone, _atlas);
 
         _mesh = new Mesh(v.ToArray());
     }
 
-    static void AddVertex(List<float> v, Vector3 p, Vector2 uv)
-    {
-        v.AddRange(new[] { p.X, p.Y, p.Z, 1f, 1f, 1f, uv.X, uv.Y });
-    }
 
-    // Upright, unmirrored UV (0..1) for a cube face seen from outside.
-    static Vector2 FaceUV(int face, Vector3 p) => face switch
-    {
-        0 => new Vector2((1 - p.X) / 2, (p.Y + 1) / 2), // back
-        1 => new Vector2((p.X + 1) / 2, (p.Y + 1) / 2), // front
-        2 => new Vector2((p.Z + 1) / 2, (p.Y + 1) / 2), // left
-        3 => new Vector2((1 - p.Z) / 2, (p.Y + 1) / 2), // right
-        4 => new Vector2((p.X + 1) / 2, (1 - p.Z) / 2), // top
-        _ => new Vector2((p.X + 1) / 2, (p.Z + 1) / 2), // bottom
-    };
-
-    void AddCube(List<float> v, Vector3 offset, int[] faceTextures)
-    {
-        for (int i = 0; i < 36; i++)
-        {
-            int face = i / 6;
-            Vector3 p = new(CubeVertices[i * 3], CubeVertices[i * 3 + 1], CubeVertices[i * 3 + 2]);
-            AddVertex(v, p + offset, _atlas.Map(faceTextures[face], FaceUV(face, p)));
-        }
-    }
-
-    void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture)
-    {
-        Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, look));
-        Vector3 up = Vector3.Normalize(Vector3.Cross(look, right));
-
-        Vector3[] pos = { -right - up, -right + up, right + up, -right - up, right + up, right - up };
-        Vector2[] uv = { new(0, 0), new(0, 1), new(1, 1), new(0, 0), new(1, 1), new(1, 0) };
-
-        for (int i = 0; i < 6; i++)
-            AddVertex(v, pos[i] + offset, _atlas.Map(texture, uv[i]));
-    }
 
     protected override void OnResize(ResizeEventArgs e)
     {
@@ -178,7 +142,7 @@ class Game : GameWindow
         GL.CullFace(TriangleFace.Back);
         GL.FrontFace(FrontFaceDirection.Cw);
 
-        Matrix4 model = Matrix4.CreateRotationY(_rotation);
+        Matrix4 model = Matrix4.CreateRotationY(0f);
         Matrix4 view = _camera.GetViewMatrix();
         Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
             MathHelper.DegreesToRadians(60f),
@@ -206,11 +170,13 @@ class Game : GameWindow
         GL.Disable(EnableCap.CullFace);
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-
+        
         RenderText(data, marginScaleX, marginScaleY, white);
 
         GL.Disable(EnableCap.Blend);
         GL.Enable(EnableCap.DepthTest);
+
+        UiRenderQueue.Flush();
 
         SwapBuffers();
     }
@@ -224,77 +190,7 @@ class Game : GameWindow
     }
 
     // Positions only. Face order: Back, Front, Left, Right, Top, Bottom
-    static readonly float[] CubeVertices =
-    {
-        -1,-1,-1,  1,-1,-1,  1, 1,-1,  -1,-1,-1,  1, 1,-1,  -1, 1,-1,
-        -1,-1, 1,  1, 1, 1,  1,-1, 1,  -1,-1, 1, -1, 1, 1,   1, 1, 1,
-        -1,-1,-1, -1, 1,-1, -1, 1, 1,  -1,-1,-1, -1, 1, 1,  -1,-1, 1,
-         1,-1,-1,  1,-1, 1,  1, 1, 1,   1,-1,-1,  1, 1, 1,   1, 1,-1,
-        -1, 1,-1,  1, 1,-1,  1, 1, 1,  -1, 1,-1,  1, 1, 1,  -1, 1, 1,
-        -1,-1,-1,  1,-1, 1,  1,-1,-1,  -1,-1,-1, -1,-1, 1,   1,-1, 1,
-    };
-}
 
-class TextureAtlas : IDisposable
-{
-    const int Tile = 32;
-
-    readonly string[] _names;
-    readonly int _cols, _width, _height, _handle;
-
-    public TextureAtlas(string folder, string[] names)
-    {
-        _names = names;
-        _cols = (int)Math.Ceiling(Math.Sqrt(names.Length));
-        int rows = (names.Length + _cols - 1) / _cols;
-        _width = _cols * Tile;
-        _height = rows * Tile;
-
-        byte[] pixels = new byte[_width * _height * 4];
-
-        for (int i = 0; i < names.Length; i++)
-        {
-            using var stream = File.OpenRead(Path.Combine(folder, names[i] + ".png"));
-            byte[] tile = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha).Data;
-
-            int ox = (i % _cols) * Tile, oy = (i / _cols) * Tile;
-
-            for (int y = 0; y < Tile; y++)
-                System.Buffer.BlockCopy(tile, y * Tile * 4, pixels, ((oy + y) * _width + ox) * 4, Tile * 4);
-        }
-
-        _handle = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, _handle);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, _width, _height, 0,
-            PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-    }
-
-    public int Id(string name) => Array.IndexOf(_names, name);
-
-    // local (0,0) = bottom-left of the face, (1,1) = top-right
-    public Vector2 Map(int id, Vector2 local)
-    {
-        float e = 0.01f / Tile; // keep samples inside the tile
-        local = new Vector2(e + local.X * (1 - 2 * e), e + local.Y * (1 - 2 * e));
-
-        int col = id % _cols, row = id / _cols;
-
-        return new Vector2(
-            (col + local.X) * Tile / _width,
-            (row + 1 - local.Y) * Tile / _height);
-    }
-
-    public void Bind()
-    {
-        GL.ActiveTexture(TextureUnit.Texture0);
-        GL.BindTexture(TextureTarget.Texture2D, _handle);
-    }
-
-    public void Dispose() => GL.DeleteTexture(_handle);
 }
 
 class Shader : IDisposable

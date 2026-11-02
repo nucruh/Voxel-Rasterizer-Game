@@ -373,9 +373,6 @@ public static class BitmapFontRenderer
         }
 
         // Upload & draw
-        GL.Enable(EnableCap.Blend);
-        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        GL.Disable(EnableCap.DepthTest);
 
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
         GL.BufferData(BufferTarget.ArrayBuffer, vi * sizeof(float), verts, BufferUsageHint.StreamDraw);
@@ -393,9 +390,6 @@ public static class BitmapFontRenderer
         GL.BindVertexArray(0);
         GL.BindTexture(TextureTarget.Texture2D, 0);
         GL.UseProgram(0);
-
-        GL.Enable(EnableCap.DepthTest);
-        GL.Disable(EnableCap.Blend);
     }
 
     // ── Shader helpers ─────────────────────────────────────────────────────────
