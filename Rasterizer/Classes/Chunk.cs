@@ -60,16 +60,16 @@ public class Chunk
 
                     foreach(Vector3 offset in NeighborOffsets)
                     {
-                        i++;
                         if (GetBlock(x + (int)offset.X, y + (int)offset.Y, z + (int)offset.Z) != 0)
                         {
                             neighborCount++;
-                            freeFaces[i - 1] = false;
+                            freeFaces[i] = false;
                         }
                         else
                         {
-                            freeFaces[i - 1] = true;
+                            freeFaces[i] = true;
                         }
+                        i++;
                     }
 
                     if(neighborCount == 6 || blockType == 0)
@@ -79,9 +79,16 @@ public class Chunk
                     }
 
                     // If the block is not air, add it to the mesh
+                    i = 0;
                     Vector3 blockPosition = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
-                    
-                    MeshUtility.AddCube(vertices, blockPosition, new string[] { "stone", "stone", "stone", "stone", "stone", "stone" }, textureAtlas);
+                    foreach(bool free in freeFaces)
+                    {
+                        if(free)
+                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, "stone", textureAtlas);
+                        i++;
+                    }
+
+                    //MeshUtility.AddCube(vertices, blockPosition, new string[] { "stone", "stone", "stone", "stone", "stone", "stone" }, textureAtlas);
                 }
 
         mesh = new Mesh(vertices.ToArray());

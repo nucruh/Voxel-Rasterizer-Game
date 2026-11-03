@@ -41,14 +41,22 @@ public static class MeshUtility
 
     public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, string texture, TextureAtlas _atlas)
     {
-        Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, look));
-        Vector3 up = Vector3.Normalize(Vector3.Cross(look, right));
+        look = Vector3.Normalize(look);
+
+        // If look is (almost) parallel to Y, Cross(UnitY, look) degenerates, so use another reference axis.
+        Vector3 reference = MathF.Abs(look.Y) > 0.999f ? Vector3.UnitZ : Vector3.UnitY;
+
+        Vector3 right = Vector3.Normalize(Vector3.Cross(reference, look)) * 0.5f;
+        Vector3 up = Vector3.Normalize(Vector3.Cross(look, right)) * 0.5f;
 
         Vector3[] pos = { -right - up, -right + up, right + up, -right - up, right + up, right - up };
         Vector2[] uv = { new(0, 0), new(0, 1), new(1, 1), new(0, 0), new(1, 1), new(1, 0) };
 
+        Vector3 center = offset + look * 0.5f;
+
+        int id = _atlas.Id(texture);
         for (int i = 0; i < 6; i++)
-            AddVertex(v, pos[i] + offset, _atlas.Map(_atlas.Id(texture), uv[i]));
+            AddVertex(v, pos[i] + center, _atlas.Map(id, uv[i]));
     }
 
     public static int GetTotalTriangles(Mesh[] meshes)
