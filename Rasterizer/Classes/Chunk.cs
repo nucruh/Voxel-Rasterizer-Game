@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using System.Diagnostics;
+using System.Drawing;
 using System.Runtime.CompilerServices;
 using OpenTK.Mathematics;
 
@@ -25,11 +26,20 @@ public class Chunk
                 for (int y = 0; y < Size; y++)
                 {
                     if (y <= height)
-                        blockData[x + y * Size + z * Size * Size] = 1; // stone
+                        blockData[GetLocalIdInChunk(x, y, z)] = 1; // stone
                     else
-                        blockData[x + y * Size + z * Size * Size] = 0; // air
+                        blockData[GetLocalIdInChunk(x, y, z)] = 0; // air
                 }
+                if ((int)height + 1 < 0 || (int)height + 1 > Size)
+                    continue;
+
+                blockData[GetLocalIdInChunk(x, (int)height + 1, z)] = 64511; // grass
             }
+    }
+
+    public int GetLocalIdInChunk(int x, int y, int z)
+    {
+        return x + y * Size + z * Size * Size;
     }
 
     private Vector3[] NeighborOffsets = new Vector3[]
@@ -44,6 +54,7 @@ public class Chunk
 
     public void CreateMesh(TextureAtlas textureAtlas)
     {
+        Stopwatch sw = Stopwatch.StartNew();
         List<float> vertices = new List<float>();
 
         for(int x = 0; x < Size; x++)
@@ -51,6 +62,22 @@ public class Chunk
                 for (int z = 0; z < Size; z++)
                 {
                     ushort blockType = blockData[x + y * Size + z * Size * Size];
+
+                    // special cases
+                    if(blockType > 64510)
+                    {
+                        if(blockType == 64511) // grass card
+                        {
+                            Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
+                            MeshUtility.AddQuad(vertices, new Vector3(1, 0, 1), new Vector3(_BP - new Vector3(0, 0, -0.0f)), "grass_card", textureAtlas, true);
+                            MeshUtility.AddQuad(vertices, new Vector3(-1, 0, 1), new Vector3(_BP - new Vector3(-0.0f, 0, 0)), "grass_card", textureAtlas, true);
+                        }
+
+                        continue;
+                    }
+
+                    if (blockType == 0)
+                        continue; // skip air blocks
 
                     // check neighbors
                     byte neighborCount = 0;
@@ -60,7 +87,9 @@ public class Chunk
 
                     foreach(Vector3 offset in NeighborOffsets)
                     {
-                        if (GetBlock(x + (int)offset.X, y + (int)offset.Y, z + (int)offset.Z) != 0)
+                        ushort neighborBlockType = GetBlock(x + (int)offset.X, y + (int)offset.Y, z + (int)offset.Z);
+                        // 1024 reserved for non full blocks
+                        if (neighborBlockType != 0 && (neighborBlockType < 64511))
                         {
                             neighborCount++;
                             freeFaces[i] = false;
@@ -72,7 +101,7 @@ public class Chunk
                         i++;
                     }
 
-                    if(neighborCount == 6 || blockType == 0)
+                    if(neighborCount == 6)
                     {
                         // all neighbors are solid, skip this block
                         continue;
@@ -84,7 +113,7 @@ public class Chunk
                     foreach(bool free in freeFaces)
                     {
                         if(free)
-                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, "stone", textureAtlas);
+                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, "grass_loam", textureAtlas);
                         i++;
                     }
 
@@ -92,6 +121,8 @@ public class Chunk
                 }
 
         mesh = new Mesh(vertices.ToArray());
+        sw.Stop();
+        System.Diagnostics.Debug.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
     }
 
     private ushort GetBlock(int x, int y, int z)

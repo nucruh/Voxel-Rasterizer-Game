@@ -1,7 +1,7 @@
 ﻿#version 430 core
 
 in vec3 vWorldPos;
-in vec3 vertexColor;
+in vec3 vertexNormal;
 in vec2 texCoord;
 
 out vec4 FragColor;
@@ -16,6 +16,7 @@ uniform float texelWorld;            // world size of one shadow texel
 
 const float NORMAL_OFFSET = 1.5;     // in shadow texels
 const float CONST_BIAS    = 0.0002;
+const float DENSITY = 0.008;
 
 const vec3  ambient = vec3(1.0, 1.0, 1.0);
 const float ambient_strength = 0.2;
@@ -58,10 +59,25 @@ float ShadowFactor(vec3 worldPos, vec3 N)
     return shadow / 9.0;
 }
 
+vec3 ApplyFog(vec3 color, float depth)
+{
+    const vec3 fogColor = vec3(0.65, 0.75, 0.9);
+    const float density = 0.012;
+
+    float fogFactor = 1.0 - exp(-depth * density);
+
+    return mix(color, fogColor, fogFactor);
+}
+
 void main()
 {
     vec4 color = texture(atlas, texCoord);
+    float depth = length(vWorldPos - uCamPos);
     vec3 rayDir = normalize(vWorldPos - uCamPos);
+
+    // this wont work for water
+    if (color.a < 0.5)
+        discard;
 
     // flat face normal (negate if lighting looks inverted)
     vec3 N = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
@@ -72,7 +88,11 @@ void main()
     vec3 lighting = ambient * ambient_strength + (1.0 - ambient_strength) * ndl * shadow;
     color.rgb *= lighting;
 
-    color.rgb = ACESFilm(color.rgb, 1.0);
+    color.rgb = ACESFilm(color.rgb, 0.713);
+
+    float fogFactor = 1.0 - exp(-pow(depth * DENSITY, 2.0));
+
+    color.rgb = ApplyFog(color.rgb, depth);
 
     FragColor = color;
 }

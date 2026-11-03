@@ -7,11 +7,14 @@ public class TextureAtlas : IDisposable
     const int Tile = 32;
 
     readonly string[] _names;
+    readonly Dictionary<string, List<string>> _nameToNames;
     readonly int _cols, _width, _height, _handle;
 
     public TextureAtlas(string folder, string[] names)
     {
         _names = names;
+        _nameToNames = TextureNames.NameToNames;
+
         _cols = (int)Math.Ceiling(Math.Sqrt(names.Length));
         int rows = (names.Length + _cols - 1) / _cols;
         _width = _cols * Tile;
@@ -43,9 +46,26 @@ public class TextureAtlas : IDisposable
     public int Id(string name) => Array.IndexOf(_names, name);
 
     // local (0,0) = bottom-left of the face, (1,1) = top-right
-    public Vector2 Map(int id, Vector2 local)
+    public Vector2 Map(string name, Vector2 local, Vector3? look = null)
     {
-        float e = 0.01f / Tile; // keep samples inside the tile
+        string textureName = name;
+
+        if (look.HasValue)
+        {
+            Vector3 normal = look.Value;
+
+            int face = normal.X > 0.5f ? 0 :
+                       normal.X < -0.5f ? 1 :
+                       normal.Y > 0.5f ? 2 :
+                       normal.Y < -0.5f ? 3 :
+                       normal.Z > 0.5f ? 4 : 5;
+
+            textureName = _nameToNames[name][face];
+        }
+
+        int id = Id(textureName);
+
+        float e = 0.01f / Tile;
         local = new Vector2(e + local.X * (1 - 2 * e), e + local.Y * (1 - 2 * e));
 
         int col = id % _cols, row = id / _cols;

@@ -89,6 +89,9 @@ class Game : GameWindow
             File.ReadAllText("Shaders/sky.vert"),
             File.ReadAllText("Shaders/sky.frag"));
 
+        GL.Enable(EnableCap.Blend);
+        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
         _skyVao = GL.GenVertexArray();
 
         // maybe lowering this can help in needing less resolution for the shadowmap
