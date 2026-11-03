@@ -43,7 +43,6 @@ public static class MeshUtility
     {
         look = Vector3.Normalize(look);
 
-        // If look is (almost) parallel to Y, Cross(UnitY, look) degenerates, so use another reference axis.
         Vector3 reference = MathF.Abs(look.Y) > 0.999f ? Vector3.UnitZ : Vector3.UnitY;
 
         Vector3 right = Vector3.Normalize(Vector3.Cross(reference, look)) * 0.5f;

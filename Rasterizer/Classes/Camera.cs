@@ -6,7 +6,7 @@ public class Camera
     public float Yaw;    // degrees
     public float Pitch;  // degrees
 
-    public float Speed = 4f;
+    public float Speed = 16f;
     public float Sensitivity = 0.15f;
 
     public Camera(Vector3 position, Vector3 target)
