@@ -9,6 +9,7 @@ public class Chunk
     public const int Size = 32;
     public bool IsEmpty;
     public Mesh? mesh;
+    public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
 
     public Chunk(Vector3 position)
@@ -52,12 +53,15 @@ public class Chunk
         new Vector3(0, 0, 1)   // front
     };
 
-    public void CreateMesh(TextureAtlas textureAtlas)
+    public void CreateMesh(TextureAtlas textureAtlas, TextureAtlas normalAtlas)
     {
         Stopwatch sw = Stopwatch.StartNew();
         List<float> vertices = new List<float>();
 
-        for(int x = 0; x < Size; x++)
+        int foliageCount = 0;
+        List<float> foliageVertices = new List<float>();
+
+        for (int x = 0; x < Size; x++)
             for(int y = 0; y < Size; y++)
                 for (int z = 0; z < Size; z++)
                 {
@@ -69,8 +73,9 @@ public class Chunk
                         if(blockType == 64511) // grass card
                         {
                             Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
-                            MeshUtility.AddQuad(vertices, new Vector3(1, 0, 1), new Vector3(_BP - new Vector3(0, 0, -0.0f)), "grass_card", textureAtlas, true);
-                            MeshUtility.AddQuad(vertices, new Vector3(-1, 0, 1), new Vector3(_BP - new Vector3(-0.0f, 0, 0)), "grass_card", textureAtlas, true);
+                            foliageCount++;
+                            MeshUtility.AddQuad(foliageVertices, new Vector3(1, 0, 1), new Vector3(_BP - new Vector3(0, 0, -0.0f)), "grass_card", textureAtlas, true, normalAtlas, true, true);
+                            MeshUtility.AddQuad(foliageVertices, new Vector3(-1, 0, 1), new Vector3(_BP - new Vector3(-0.0f, 0, 0)), "grass_card", textureAtlas, true, normalAtlas, true, true);
                         }
 
                         continue;
@@ -113,7 +118,7 @@ public class Chunk
                     foreach(bool free in freeFaces)
                     {
                         if(free)
-                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, "grass_loam", textureAtlas);
+                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, "dirt_loam", textureAtlas, false, normalAtlas);
                         i++;
                     }
 
@@ -121,6 +126,10 @@ public class Chunk
                 }
 
         mesh = new Mesh(vertices.ToArray());
+
+        if(foliageCount != 0)
+            foliageMesh = new Mesh(foliageVertices.ToArray(), true);
+
         sw.Stop();
         System.Diagnostics.Debug.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
     }

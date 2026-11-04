@@ -2,24 +2,28 @@
 
 in vec3 vWorldPos;
 in vec3 vertexNormal;
+in vec3 vTangent;
+in float vTangentHandedness;
 in vec2 texCoord;
 
 out vec4 FragColor;
 
 uniform sampler2D atlas;
-uniform sampler2DShadow shadowMap;   // texture unit 1
+uniform sampler2D normalAtlas;
+uniform sampler2DShadow shadowMap;
 uniform vec3 uCamPos;
 
 uniform mat4 lightSpace;
-uniform vec3 lightDir;               // direction the light TRAVELS (sun  scene), normalized
-uniform float texelWorld;            // world size of one shadow texel
+uniform vec3 lightDir;
+uniform float texelWorld;
 
-const float NORMAL_OFFSET = 1.5;     // in shadow texels
-const float CONST_BIAS    = 0.0002;
+const float NORMAL_OFFSET = 1.5;
+const float CONST_BIAS = 0.0002;
 const float DENSITY = 0.008;
 
-const vec3  ambient = vec3(1.0, 1.0, 1.0);
+const vec3 ambient = vec3(1.0, 1.0, 1.0);
 const float ambient_strength = 0.2;
+const float NORMAL_STRENGTH = 0.2;
 
 vec3 ACESFilm(vec3 color, float exposure)
 {
@@ -72,27 +76,38 @@ vec3 ApplyFog(vec3 color, float depth)
 void main()
 {
     vec4 color = texture(atlas, texCoord);
-    float depth = length(vWorldPos - uCamPos);
-    vec3 rayDir = normalize(vWorldPos - uCamPos);
 
-    // this wont work for water
+    float depth = length(vWorldPos - uCamPos);
+
     if (color.a < 0.5)
         discard;
 
-    // flat face normal (negate if lighting looks inverted)
-    vec3 N = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
+    // normals
+    vec3 N = normalize(vertexNormal);
+    vec3 T = normalize(vTangent - dot(vTangent, N) * N);
+    vec3 B = cross(N, T) * vTangentHandedness;
 
-    float ndl    = max(dot(N, -lightDir), 0.0);
+    mat3 TBN = mat3(T, B, N);
+
+    vec3 normalSample = texture(normalAtlas, texCoord).rgb;
+    normalSample = normalize(normalSample * 2.0 - 1.0);
+
+    normalSample = normalize(mix(vec3(0.0, 0.0, 1.0), normalSample, NORMAL_STRENGTH));
+
+    N = normalize(TBN * normalSample);
+
+    // Lighting
+    float ndl = max(dot(N, -lightDir), 0.0);
     float shadow = ShadowFactor(vWorldPos, N);
 
     vec3 lighting = ambient * ambient_strength + (1.0 - ambient_strength) * ndl * shadow;
+
     color.rgb *= lighting;
-
     color.rgb = ACESFilm(color.rgb, 0.713);
-
-    float fogFactor = 1.0 - exp(-pow(depth * DENSITY, 2.0));
-
     color.rgb = ApplyFog(color.rgb, depth);
+
+
+    //FragColor = vec4(texture(normalAtlas, texCoord).rgb, 1.0);
 
     FragColor = color;
 }

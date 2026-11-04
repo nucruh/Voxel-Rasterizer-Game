@@ -17,17 +17,20 @@ class Game : GameWindow
     List<Mesh> _sceneObjects = new List<Mesh>();
     Camera _camera = null!;
     TextureAtlas _atlas = null!;
+    TextureAtlas _normalAtlas = null!;
 
     // --- shadow mapping ---
     const int ShadowMapSize = 4096;
-    const int WorldChunks = 8;
+    const int WorldChunks = 1;
     const float WorldHeight = 64f;   // replace with your max terrain height
 
     Shader _shadowShader = null!;
     ShadowMap _shadow = null!;
+    Shader _foliageShader = null!;
     Matrix4 _lightSpace;
     Vector3 _lightDir = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.3f)); // direction the light TRAVELS
     float _texelWorld;
+    float _time;
 
     Shader _skyShader = null!;
     int _skyVao;
@@ -41,7 +44,7 @@ class Game : GameWindow
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.Off,
+            Vsync = VSyncMode.On,
             WindowBorder = WindowBorder.Hidden
         })
     {
@@ -66,16 +69,27 @@ class Game : GameWindow
             File.ReadAllText("Shaders/main.vert"),
             File.ReadAllText("Shaders/main.frag"));
 
+        _foliageShader = new Shader(
+            File.ReadAllText("Shaders/foliage.vert"),
+            File.ReadAllText("Shaders/foliage.frag"));
+
         _atlas = new TextureAtlas("Textures", TextureNames.Names);
+        // The normal atlas uses the dedicated 256x256 normal texture for every slot.
+        _normalAtlas = new TextureAtlas(
+            "Textures",
+            new[] { "normal", "normal", "normal", "normal", "normal" },
+            256);
 
         for (int x = 0; x < WorldChunks; x++)
             for (int z = 0; z < WorldChunks; z++)
             {
                 Chunk c = new Chunk(new Vector3(x * Chunk.Size, 0, z * Chunk.Size));
                 c.Generate();
-                c.CreateMesh(_atlas);
+                c.CreateMesh(_atlas, _normalAtlas);
 
                 _sceneObjects.Add(c.mesh!);
+                if (c.foliageMesh != null)
+                    _sceneObjects.Add(c.foliageMesh);
             }
 
         // --- shadow setup (world is static, so the map is rendered once) ---
@@ -148,9 +162,26 @@ class Game : GameWindow
         _shadowShader.Use();
         _shadowShader.SetMatrix4("model", Matrix4.Identity);
         _shadowShader.SetMatrix4("lightSpace", _lightSpace);
+        _shadowShader.SetFloat("time", _time);
+
+        _atlas.Bind(TextureUnit.Texture0);
+        _shadowShader.SetInt("atlas", 0);
+
+        _normalAtlas.Bind(TextureUnit.Texture1);
+        _shadowShader.SetInt("normalAtlas", 1);
 
         foreach (var mesh in _sceneObjects)
+        {
+            _shadowShader.SetInt("isFoliage", mesh.IsFoliage ? 1 : 0);
+
+            if (mesh.IsFoliage)
+                GL.Disable(EnableCap.CullFace);
+
             mesh.Draw();
+
+            if (mesh.IsFoliage)
+                GL.Enable(EnableCap.CullFace);
+        }
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
@@ -203,6 +234,10 @@ class Game : GameWindow
         timeFrame += 1.0 / e.Time;
         timeSinceLastFps += e.Time;
 
+        _time += (float)e.Time;
+
+        RenderShadowMap();
+
         if (timeSinceLastFps >= 0.5)
         {
             timeFrame /= countFrame;
@@ -246,7 +281,7 @@ class Game : GameWindow
         GL.DepthMask(true);
         GL.Enable(EnableCap.DepthTest);
 
-        // Render scene
+        // Render regular meshes
         _shader.Use();
 
         GL.Enable(EnableCap.CullFace);
@@ -257,23 +292,63 @@ class Game : GameWindow
         _shader.SetMatrix4("view", view);
         _shader.SetMatrix4("projection", projection);
 
-        // shadow uniforms
         _shader.SetMatrix4("lightSpace", _lightSpace);
         _shader.SetVector3("lightDir", _lightDir);
         _shader.SetFloat("texelWorld", _texelWorld);
         _shader.SetVector3("uCamPos", _camera.Position);
 
-        // shadow map on unit 1, atlas on unit 0
         GL.ActiveTexture(TextureUnit.Texture1);
         GL.BindTexture(TextureTarget.Texture2D, _shadow.Texture);
         _shader.SetInt("shadowMap", 1);
 
         GL.ActiveTexture(TextureUnit.Texture0);
-        _atlas.Bind();
+        _atlas.Bind(TextureUnit.Texture0);
         _shader.SetInt("atlas", 0);
 
+        GL.ActiveTexture(TextureUnit.Texture2);
+        _normalAtlas.Bind(TextureUnit.Texture2);
+        _shader.SetInt("normalAtlas", 2);
+
         foreach (var mesh in _sceneObjects)
-            mesh.Draw();
+        {
+            if (!mesh.IsFoliage)
+                mesh.Draw();
+        }
+
+        // Render foliage
+        _foliageShader.Use();
+
+        _foliageShader.SetMatrix4("model", model);
+        _foliageShader.SetMatrix4("view", view);
+        _foliageShader.SetMatrix4("projection", projection);
+
+        _foliageShader.SetMatrix4("lightSpace", _lightSpace);
+        _foliageShader.SetVector3("lightDir", _lightDir);
+        _foliageShader.SetFloat("texelWorld", _texelWorld);
+        _foliageShader.SetVector3("uCamPos", _camera.Position);
+        _foliageShader.SetFloat("time", _time);
+
+        GL.ActiveTexture(TextureUnit.Texture1);
+        GL.BindTexture(TextureTarget.Texture2D, _shadow.Texture);
+        _foliageShader.SetInt("shadowMap", 1);
+
+        GL.ActiveTexture(TextureUnit.Texture0);
+        _atlas.Bind(TextureUnit.Texture0);
+        _foliageShader.SetInt("atlas", 0);
+
+        GL.ActiveTexture(TextureUnit.Texture2);
+        _normalAtlas.Bind(TextureUnit.Texture2);
+        _foliageShader.SetInt("normalAtlas", 2);
+
+        GL.Disable(EnableCap.CullFace);
+
+        foreach (var mesh in _sceneObjects)
+        {
+            if (mesh.IsFoliage)
+                mesh.Draw();
+        }
+
+        GL.Enable(EnableCap.CullFace);
 
         float marginScaleX = (float)(GlyphPixelW + TextScale) / ClientSize.X;
         float marginScaleY = (float)(GlyphPixelH + TextScale * 2) / ClientSize.Y;
@@ -304,11 +379,13 @@ class Game : GameWindow
         foreach (var mesh in _sceneObjects)
             mesh.Dispose();
         _atlas.Dispose();
+        _normalAtlas.Dispose();
         _shader.Dispose();
         _shadow.Dispose();
         _shadowShader.Dispose();
         GL.DeleteVertexArray(_skyVao);
         _skyShader.Dispose();
+        _foliageShader.Dispose();
         base.OnUnload();
     }
 }

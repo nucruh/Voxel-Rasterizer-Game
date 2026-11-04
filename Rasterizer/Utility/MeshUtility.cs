@@ -13,9 +13,16 @@ public static class MeshUtility
         -0.5f,-0.5f,-0.5f,  0.5f,-0.5f, 0.5f,  0.5f,-0.5f,-0.5f,  -0.5f,-0.5f,-0.5f, -0.5f,-0.5f, 0.5f,   0.5f,-0.5f, 0.5f,
     };
 
-    public static void AddVertex(List<float> v, Vector3 p, Vector3 normal, Vector2 uv)
+    public static void AddVertex(List<float> v, Vector3 p, Vector3 normal, Vector2 uv, Vector4 tangent, float weight)
     {
-        v.AddRange(new[] { p.X, p.Y, p.Z, normal.X, normal.Y, normal.Z, uv.X, uv.Y });
+        v.AddRange(new[]
+        {
+        p.X, p.Y, p.Z,
+        normal.X, normal.Y, normal.Z,
+        uv.X, uv.Y,
+        tangent.X, tangent.Y, tangent.Z, tangent.W,
+        weight
+    });
     }
 
     // Upright, unmirrored UV (0..1) for a cube face seen from outside.
@@ -49,7 +56,7 @@ public static class MeshUtility
         }
     }
 
-    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, string texture, TextureAtlas _atlas, bool skipRecenter = false)
+    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, string texture, TextureAtlas _atlas, bool skipRecenter = false, TextureAtlas _normalAtlas = null!, bool heightPaint = false, bool upNormal = false)
     {
         look = Vector3.Normalize(look);
 
@@ -63,15 +70,22 @@ public static class MeshUtility
 
         Vector3 center = offset;
 
-        if(!skipRecenter)
-        {
+        if (!skipRecenter)
             center += look * 0.5f;
-        }
-        
 
-        //int id = _atlas.Id(texture);
+        Vector3 tangent = Vector3.Normalize(right);
+        float handedness = Vector3.Dot(Vector3.Cross(look, tangent), up) < 0 ? -1 : 1;
+
+        Vector4 tangentData = new(tangent, handedness);
+
+        float weightMod = heightPaint ? 1.0f : 0.0f;
+
         for (int i = 0; i < 6; i++)
-            AddVertex(v, pos[i] + center, look, _atlas.Map(texture, uv[i], look));
+        {
+            Vector3 normal = upNormal ? Vector3.UnitY : look;
+            AddVertex(v, pos[i] + center, normal, _atlas.Map(texture, uv[i], look), tangentData, (pos[i].Y + 0.5f) * weightMod);
+        }
+            
     }
 
     public static int GetTotalTriangles(Mesh[] meshes)

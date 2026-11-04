@@ -4,7 +4,7 @@ using StbImageSharp;
 
 public class TextureAtlas : IDisposable
 {
-    const int Tile = 32;
+    private int Tile = 32;
 
     readonly string[] _names;
     readonly Dictionary<string, List<string>> _nameToNames;
@@ -14,6 +14,42 @@ public class TextureAtlas : IDisposable
     {
         _names = names;
         _nameToNames = TextureNames.NameToNames;
+
+        _cols = (int)Math.Ceiling(Math.Sqrt(names.Length));
+        int rows = (names.Length + _cols - 1) / _cols;
+        _width = _cols * Tile;
+        _height = rows * Tile;
+
+        Console.WriteLine(_cols);
+
+        byte[] pixels = new byte[_width * _height * 4];
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            using var stream = File.OpenRead(Path.Combine(folder, names[i] + ".png"));
+            byte[] tile = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha).Data;
+
+            int ox = (i % _cols) * Tile, oy = (i / _cols) * Tile;
+
+            for (int y = 0; y < Tile; y++)
+                System.Buffer.BlockCopy(tile, y * Tile * 4, pixels, ((oy + y) * _width + ox) * 4, Tile * 4);
+        }
+
+        _handle = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, _handle);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, _width, _height, 0,
+            PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+    }
+
+    public TextureAtlas(string folder, string[] names, int texSize)
+    {
+        Tile = texSize;
+        _names = names;
+        _nameToNames = TextureNames.NameToNames2;
 
         _cols = (int)Math.Ceiling(Math.Sqrt(names.Length));
         int rows = (names.Length + _cols - 1) / _cols;
@@ -75,9 +111,9 @@ public class TextureAtlas : IDisposable
             (row + 1 - local.Y) * Tile / _height);
     }
 
-    public void Bind()
+    public void Bind(TextureUnit textureUnit = TextureUnit.Texture0)
     {
-        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.ActiveTexture(textureUnit);
         GL.BindTexture(TextureTarget.Texture2D, _handle);
     }
 

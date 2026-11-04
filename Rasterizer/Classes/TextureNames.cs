@@ -18,4 +18,12 @@
         ["dirt_loam"] = new List<string> { "dirt_loam", "dirt_loam", "dirt_loam", "dirt_loam", "dirt_loam", "dirt_loam" },
         ["grass_loam"] = new List<string> {"grass_side_loam", "grass_side_loam", "grass_top_loam", "dirt_loam", "grass_side_loam", "grass_side_loam"}
     };
+
+    public static readonly Dictionary<string, List<string>> NameToNames2 = new()
+    {
+        ["grass_card"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
+        ["stone"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
+        ["dirt_loam"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
+        ["grass_loam"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
+    };
 }
