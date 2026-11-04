@@ -88,6 +88,11 @@ public static class MeshUtility
             
     }
 
+    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture, TextureAtlas _atlas, bool skipRecenter = false, TextureAtlas _normalAtlas = null!, bool heightPaint = false, bool upNormal = false)
+    {
+        AddQuad(v, look, offset, TextureNames.IdToName[texture], _atlas, skipRecenter, _normalAtlas, heightPaint, upNormal);
+    }
+
     public static int GetTotalTriangles(Mesh[] meshes)
     {
         return meshes.Sum(m => m.TriangleCount);

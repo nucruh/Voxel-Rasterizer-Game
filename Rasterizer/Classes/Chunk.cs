@@ -23,11 +23,15 @@ public class Chunk
         for(int x = 0; x < Size; x++)
             for(int z = 0; z < Size; z++)
             {
-                float height = (float)Math.Round(PerlinNoise.Noise((Position.X + x) * 0.1f, (Position.Z + z) * 0.1f) * 10, 0);
+                float height = (float)Math.Round(PerlinNoise.FBM((Position.X + x) * 0.1f, (Position.Z + z) * 0.1f, 2, 0.65f, 2.1042f) * 10, 0);
                 for (int y = 0; y < Size; y++)
                 {
-                    if (y <= height)
-                        blockData[GetLocalIdInChunk(x, y, z)] = 1; // stone
+                    if (y + (int)Position.Y <= height)
+                    {
+                        blockData[GetLocalIdInChunk(x, y, z)] = 1;
+                        if (y + (int)Position.Y == height)
+                            blockData[GetLocalIdInChunk(x, y, z)] = 2; // grass
+                    }
                     else
                         blockData[GetLocalIdInChunk(x, y, z)] = 0; // air
                 }
@@ -118,7 +122,7 @@ public class Chunk
                     foreach(bool free in freeFaces)
                     {
                         if(free)
-                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, "dirt_loam", textureAtlas, false, normalAtlas);
+                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, blockType, textureAtlas, false, normalAtlas);
                         i++;
                     }
 

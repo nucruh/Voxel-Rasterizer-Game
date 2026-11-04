@@ -26,4 +26,14 @@
         ["dirt_loam"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
         ["grass_loam"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
     };
+
+    public static readonly Dictionary<string, int> NameToId = new()
+    {
+        ["stone"] = 0,
+        ["dirt_loam"] = 1,
+        ["grass_loam"] = 2,
+        ["grass_card"] = 64511
+    };
+
+    public static readonly Dictionary<int, string> IdToName = NameToId.ToDictionary(x => x.Value, x => x.Key);
 }

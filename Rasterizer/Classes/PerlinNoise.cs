@@ -84,4 +84,23 @@ public static class PerlinNoise
     {
         return Noise(x, y, 0f);
     }
+
+    public static float FBM(float x, float y, int octaves = 4, float persistence = 0.65f, float lacunarity = 2.1042f)
+    {
+        float total = 0f;
+        float amplitude = 1f;
+        float frequency = 1f;
+        float maxValue = 0f;
+
+        for (int i = 0; i < octaves; i++)
+        {
+            total += Noise(x * frequency, y * frequency) * amplitude;
+            maxValue += amplitude;
+
+            amplitude *= persistence;
+            frequency *= lacunarity;
+        }
+
+        return total / maxValue;
+    }
 }

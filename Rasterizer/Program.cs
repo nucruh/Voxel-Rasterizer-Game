@@ -21,7 +21,7 @@ class Game : GameWindow
 
     // --- shadow mapping ---
     const int ShadowMapSize = 4096;
-    const int WorldChunks = 1;
+    const int WorldChunks = 4;
     const float WorldHeight = 64f;   // replace with your max terrain height
 
     Shader _shadowShader = null!;
@@ -82,15 +82,16 @@ class Game : GameWindow
 
         for (int x = 0; x < WorldChunks; x++)
             for (int z = 0; z < WorldChunks; z++)
-            {
-                Chunk c = new Chunk(new Vector3(x * Chunk.Size, 0, z * Chunk.Size));
-                c.Generate();
-                c.CreateMesh(_atlas, _normalAtlas);
+                for(int y = -1; y < 1; y++)
+                    {
+                        Chunk c = new Chunk(new Vector3(x * Chunk.Size, y * Chunk.Size, z * Chunk.Size));
+                        c.Generate();
+                        c.CreateMesh(_atlas, _normalAtlas);
 
-                _sceneObjects.Add(c.mesh!);
-                if (c.foliageMesh != null)
-                    _sceneObjects.Add(c.foliageMesh);
-            }
+                        _sceneObjects.Add(c.mesh!);
+                        if (c.foliageMesh != null)
+                            _sceneObjects.Add(c.foliageMesh);
+                    }
 
         // --- shadow setup (world is static, so the map is rendered once) ---
         _shadowShader = new Shader(

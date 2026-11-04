@@ -18,11 +18,12 @@ uniform vec3 lightDir;
 uniform float texelWorld;
 
 const float NORMAL_OFFSET = 1.5;
-const float CONST_BIAS = 0.0002;
+const float CONST_BIAS = 0.005;
 const float DENSITY = 0.008;
 
 const vec3 ambient = vec3(1.0, 1.0, 1.0);
-const float ambient_strength = 0.2;
+const float ambient_strength = 0.15;
+const float direct_strength = 0.4;
 const float NORMAL_STRENGTH = 0.2;
 
 vec3 ACESFilm(vec3 color, float exposure)
@@ -100,7 +101,7 @@ void main()
     float ndl = max(dot(N, -lightDir), 0.0);
     float shadow = ShadowFactor(vWorldPos, N);
 
-    vec3 lighting = ambient * ambient_strength + (1.0 - ambient_strength) * ndl * shadow;
+    vec3 lighting = ambient * ambient_strength + direct_strength * ndl * shadow;
 
     color.rgb *= lighting;
     color.rgb = ACESFilm(color.rgb, 0.713);
