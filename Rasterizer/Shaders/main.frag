@@ -67,7 +67,7 @@ float ShadowFactor(vec3 worldPos, vec3 N)
 vec3 ApplyFog(vec3 color, float depth)
 {
     const vec3 fogColor = vec3(0.65, 0.75, 0.9);
-    const float density = 0.012;
+    const float density = 0.006;
 
     float fogFactor = 1.0 - exp(-depth * density);
 
