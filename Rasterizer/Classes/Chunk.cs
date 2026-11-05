@@ -57,13 +57,27 @@ public class Chunk
         new Vector3(0, 0, 1)   // front
     };
 
-    public void CreateMesh(TextureAtlas textureAtlas, TextureAtlas normalAtlas)
+    public void CreateMesh(TextureAtlas textureAtlas, TextureAtlas normalAtlas, Chunk[,,] chunks)
     {
         Stopwatch sw = Stopwatch.StartNew();
         List<float> vertices = new List<float>();
 
         int foliageCount = 0;
         List<float> foliageVertices = new List<float>();
+
+        int _x = (int)Position.X;
+        int _y = (int)Position.Y;
+        int _z = (int)Position.Z;
+
+        Chunk[] neighborChunks =
+        {
+            chunks[_x + 1, _y, _z], // +X
+            chunks[_x - 1, _y, _z], // -X
+            chunks[_x, _y + 1, _z], // +Y
+            chunks[_x, _y - 1, _z], // -Y
+            chunks[_x, _y, _z + 1], // +Z
+            chunks[_x, _y, _z - 1]  // -Z
+        };
 
         for (int x = 0; x < Size; x++)
             for(int y = 0; y < Size; y++)
@@ -163,10 +177,10 @@ public class Chunk
             foliageMesh = new Mesh(foliageVertices.ToArray(), true);
 
         sw.Stop();
-        System.Diagnostics.Debug.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
+        Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
     }
 
-    private ushort GetBlock(int x, int y, int z)
+    private ushort GetBlock(int x, int y, int z, Chunk[] neighborChunks)
     {
         if (x < 0 || y < 0 || z < 0 || x >= Size || y >= Size || z >= Size)
             return 0;

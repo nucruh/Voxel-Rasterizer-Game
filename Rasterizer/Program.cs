@@ -3,6 +3,7 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Diagnostics;
 using static BitmapFontRenderer;
 using static MeshUtility;
 
@@ -21,8 +22,11 @@ class Game : GameWindow
 
     // --- shadow mapping ---
     const int ShadowMapSize = 4096;
-    const int WorldChunks = 4;
+    const int WorldChunks = 8;
+    Chunk[,,] _chunks = new Chunk[WorldChunks, 2, WorldChunks];
     const float WorldHeight = 64f;   // replace with your max terrain height
+
+    public double totalGenerationTime = 0.0f;
 
     Shader _shadowShader = null!;
     ShadowMap _shadow = null!;
@@ -39,12 +43,12 @@ class Game : GameWindow
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(3440, 1440),
-            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
+            ClientSize = new Vector2i(1920, 1080),
+            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.On,
+            Vsync = VSyncMode.Off,
             WindowBorder = WindowBorder.Hidden
         })
     {
@@ -80,18 +84,23 @@ class Game : GameWindow
             new[] { "normal", "normal", "normal", "normal", "normal" },
             256);
 
+        Stopwatch sw = Stopwatch.StartNew();
+
         for (int x = 0; x < WorldChunks; x++)
             for (int z = 0; z < WorldChunks; z++)
                 for(int y = -1; y < 1; y++)
                     {
                         Chunk c = new Chunk(new Vector3(x * Chunk.Size, y * Chunk.Size, z * Chunk.Size));
                         c.Generate();
-                        c.CreateMesh(_atlas, _normalAtlas);
+                        c.CreateMesh(_atlas, _normalAtlas, _sceneObjects);
 
                         _sceneObjects.Add(c.mesh!);
                         if (c.foliageMesh != null)
                             _sceneObjects.Add(c.foliageMesh);
                     }
+
+        totalGenerationTime = sw.Elapsed.TotalMilliseconds;
+        sw.Stop();
 
         // --- shadow setup (world is static, so the map is rendered once) ---
         _shadowShader = new Shader(
@@ -357,6 +366,7 @@ class Game : GameWindow
         string data = $"FPS : {Math.Round(lastFps, 0)}\n" +
             $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
             $"Draw calls: {_sceneObjects.Count}\n" +
+            $"Generation time: {totalGenerationTime:f1}ms\n" +
             $"Screen : {ClientSize.X} x {ClientSize.Y}";
 
         // 2D overlay state
