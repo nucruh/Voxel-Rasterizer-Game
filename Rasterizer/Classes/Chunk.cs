@@ -81,14 +81,33 @@ public class Chunk
                             float randomOffset = (float)(new Random().NextDouble() * 0.3f - 0.15f);
                             Vector3 ranOffsetV = new Vector3(randomOffset, 0, randomOffset);
 
-                            int rotation = Random.Shared.Next(4);
-                            float angle = rotation * MathHelper.PiOver2;
+                            for (int j = 0; j < 4; j++)
+                            {
+                                float angle = j * MathHelper.PiOver4;
 
-                            Vector3 look1 = Vector3.TransformNormal(new Vector3(1, 0, 1), Matrix4.CreateRotationY(angle));
-                            Vector3 look2 = Vector3.TransformNormal(new Vector3(-1, 0, 1), Matrix4.CreateRotationY(angle));
+                                Vector3 look = Vector3.TransformNormal(
+                                    new Vector3(1, 0, 1),
+                                    Matrix4.CreateRotationY(angle)
+                                );
 
-                            MeshUtility.AddQuad(foliageVertices, look1, new Vector3(_BP - ranOffsetV), "grass_card", textureAtlas, true, normalAtlas, true, true);
-                            MeshUtility.AddQuad(foliageVertices, look2, new Vector3(_BP - ranOffsetV), "grass_card", textureAtlas, true, normalAtlas, true, true);
+                                float offsetX = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
+                                float offsetZ = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
+
+                                Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
+
+                                MeshUtility.AddQuad(
+                                    foliageVertices,
+                                    look,
+                                    offset,
+                                    "grass_card",
+                                    textureAtlas,
+                                    true,
+                                    normalAtlas,
+                                    true,
+                                    true
+                                );
+                            }
+
                         }
 
                         continue;
