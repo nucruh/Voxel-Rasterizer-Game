@@ -5,6 +5,7 @@ in vec3 vertexNormal;
 in vec3 vTangent;
 in float vTangentHandedness;
 in vec2 texCoord;
+in vec4 vTileRect;
 
 out vec4 FragColor;
 
@@ -22,8 +23,8 @@ const float CONST_BIAS = 0.0002;
 const float DENSITY = 0.008;
 
 const vec3 ambient = vec3(1.0, 1.0, 1.0);
-const float ambient_strength = 0.15;
-const float direct_strength = 0.4;
+const float ambient_strength = 0.35;
+const float direct_strength = 0.75;
 const float NORMAL_STRENGTH = 0.2;
 
 vec3 ACESFilm(vec3 color, float exposure)
@@ -76,7 +77,20 @@ vec3 ApplyFog(vec3 color, float depth)
 
 void main()
 {
-    vec4 color = texture(atlas, texCoord);
+    // derivatives must be taken before any discard / branching
+    vec2 dx = dFdx(texCoord);
+    vec2 dy = dFdy(texCoord);
+
+    // greedy quads: tile the single atlas cell across the merged face
+    vec2 uv = texCoord;
+    if (vTileRect.z > 0.0)
+    {
+        uv = vTileRect.xy + fract(texCoord) * vTileRect.zw;
+        dx *= vTileRect.zw;
+        dy *= vTileRect.zw;
+    }
+
+    vec4 color = textureGrad(atlas, uv, dx, dy);
 
     float depth = length(vWorldPos - uCamPos);
 
@@ -90,7 +104,7 @@ void main()
 
     mat3 TBN = mat3(T, B, N);
 
-    vec3 normalSample = texture(normalAtlas, texCoord).rgb;
+    vec3 normalSample = textureGrad(normalAtlas, uv, dx, dy).rgb;
     normalSample = normalize(normalSample * 2.0 - 1.0);
 
     normalSample = normalize(mix(vec3(0.0, 0.0, 1.0), normalSample, NORMAL_STRENGTH));
@@ -104,11 +118,8 @@ void main()
     vec3 lighting = ambient * ambient_strength + direct_strength * ndl * shadow;
 
     color.rgb *= lighting;
-    color.rgb = ACESFilm(color.rgb, 0.713);
+    color.rgb = ACESFilm(color.rgb, 0.0113);
     color.rgb = ApplyFog(color.rgb, depth);
-
-
-    //FragColor = vec4(texture(normalAtlas, texCoord).rgb, 1.0);
 
     FragColor = color;
 }

@@ -1,6 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Drawing;
-using System.Runtime.CompilerServices;
 using OpenTK.Mathematics;
 
 public class Chunk
@@ -12,33 +10,90 @@ public class Chunk
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
 
+    // reused between builds so we don't allocate per slice / per chunk
+    [ThreadStatic] private static ushort[]? _mask;
+    [ThreadStatic] private static int[]? _p;
+
     public Chunk(Vector3 position)
     {
         Position = position;
         IsEmpty = false;
     }
 
+    const ushort AIR = 0, STONE = 1, GRASS = 2, GRASS_CARD = 64511;
+
+    // tweak these
+    const float BaseHeight = 32f;
+    const float MountainPower = 40f;   // max extra height from mountains
+    const float RockHeight = 58f;   // above this: bare stone, no grass
+
+    static float Smooth(float a, float b, float t)
+    {
+        t = Math.Clamp((t - a) / (b - a), 0f, 1f);
+        return t * t * (3f - 2f * t);
+    }
+
+    static float HeightAt(float wx, float wz)
+    {
+        // domain warp: bends everything so features aren't blobby
+        float x = wx + PerlinNoise.FBM(wx * 0.01f + 100f, wz * 0.01f + 100f, 2, 0.5f, 2f) * 25f;
+        float z = wz + PerlinNoise.FBM(wx * 0.01f - 200f, wz * 0.01f - 200f, 2, 0.5f, 2f) * 25f;
+
+        float hills = PerlinNoise.FBM(x * 0.03f, z * 0.03f, 3, 0.5f, 2f) * 8f;
+        float detail = PerlinNoise.FBM(x * 0.1f, z * 0.1f, 2, 0.65f, 2.1042f) * 2f;
+
+        // where mountains are allowed (large, rare regions)
+        float mask = Smooth(0.0f, 0.5f, PerlinNoise.FBM(x * 0.005f, z * 0.005f, 2, 0.5f, 2f));
+
+        // ridged noise: sharp crests instead of round bumps
+        float ridge = 1f - MathF.Abs(PerlinNoise.FBM(x * 0.015f, z * 0.015f, 3, 0.5f, 2f) * 2f);
+        ridge *= ridge;
+
+        return BaseHeight + hills + detail + mask * ridge * MountainPower;
+    }
+
+    // cheap deterministic hash, so grass placement is stable between rebuilds
+    static float Hash01(int x, int z)
+    {
+        uint h = (uint)(x * 374761393 + z * 668265263);
+        h = (h ^ (h >> 13)) * 1274126177u;
+        return ((h ^ (h >> 16)) & 0xFFFF) / 65535f;
+    }
+
     public void Generate()
     {
-        for(int x = 0; x < Size; x++)
-            for(int z = 0; z < Size; z++)
+        int py = (int)Position.Y;
+
+        for (int x = 0; x < Size; x++)
+            for (int z = 0; z < Size; z++)
             {
-                float height = (float)Math.Round(PerlinNoise.FBM((Position.X + x) * 0.1f, (Position.Z + z) * 0.1f, 2, 0.65f, 2.1042f) * 10, 0);
+                float wx = Position.X + x, wz = Position.Z + z;
+
+                float h = HeightAt(wx, wz);
+                int height = (int)MathF.Floor(h);
+
+                // slope from neighbours: steep = cliff
+                float slope = MathF.Max(MathF.Abs(HeightAt(wx + 1, wz) - h),
+                                        MathF.Abs(HeightAt(wx, wz + 1) - h));
+
+                bool rocky = slope > 1.6f || height > RockHeight;
+                ushort topBlock = rocky ? STONE : GRASS;
+
                 for (int y = 0; y < Size; y++)
                 {
-                    if (y + (int)Position.Y <= height)
-                    {
-                        blockData[GetLocalIdInChunk(x, y, z)] = 1;
-                        if (y + (int)Position.Y == height)
-                            blockData[GetLocalIdInChunk(x, y, z)] = 2; // grass
-                    }
-                    else
-                        blockData[GetLocalIdInChunk(x, y, z)] = 0; // air
+                    int wy = y + py;
+                    ushort id = AIR;
+                    if (wy < height) id = STONE;
+                    else if (wy == height) id = topBlock;
+                    blockData[GetLocalIdInChunk(x, y, z)] = id;
                 }
-                if ((int)height + 1 < 0 || (int)height + 1 > Size)
-                    continue;
 
-                blockData[GetLocalIdInChunk(x, (int)height + 1, z)] = 64511; // grass
+                int grassY = height - py;
+                if (grassY < 0 || grassY + 1 >= Size) continue;
+
+                // grass cards only on grass, thinned out randomly
+                if (!rocky && Hash01((int)wx, (int)wz) < 0.85f)
+                    blockData[GetLocalIdInChunk(x, grassY + 1, z)] = GRASS_CARD;
             }
     }
 
@@ -46,16 +101,6 @@ public class Chunk
     {
         return x + y * Size + z * Size * Size;
     }
-
-    private Vector3[] NeighborOffsets = new Vector3[]
-    {
-        new Vector3(-1, 0, 0), // left
-        new Vector3(1, 0, 0),  // right
-        new Vector3(0, -1, 0), // down
-        new Vector3(0, 1, 0),  // up
-        new Vector3(0, 0, -1), // back
-        new Vector3(0, 0, 1)   // front
-    };
 
     public void CreateMesh(TextureAtlas textureAtlas, TextureAtlas normalAtlas, Chunk[,,] chunks)
     {
@@ -65,116 +110,56 @@ public class Chunk
         int foliageCount = 0;
         List<float> foliageVertices = new List<float>();
 
-        int _x = (int)Position.X;
-        int _y = (int)Position.Y;
-        int _z = (int)Position.Z;
+        int _x = (int)(Position.X / Size);
+        int _y = (int)(Position.Y / Size);
+        int _z = (int)(Position.Z / Size);
 
+        // order: +X, -X, +Y, -Y, +Z, -Z (matches GetBlock)
         Chunk[] neighborChunks =
         {
-            chunks[_x + 1, _y, _z], // +X
-            chunks[_x - 1, _y, _z], // -X
-            chunks[_x, _y + 1, _z], // +Y
-            chunks[_x, _y - 1, _z], // -Y
-            chunks[_x, _y, _z + 1], // +Z
-            chunks[_x, _y, _z - 1]  // -Z
+            _x + 1 < chunks.GetLength(0) ? chunks[_x + 1, _y, _z] : null!,
+            _x - 1 >= 0 ? chunks[_x - 1, _y, _z] : null!,
+            _y + 1 < chunks.GetLength(1) ? chunks[_x, _y + 1, _z] : null!,
+            _y - 1 >= 0 ? chunks[_x, _y - 1, _z] : null!,
+            _z + 1 < chunks.GetLength(2) ? chunks[_x, _y, _z + 1] : null!,
+            _z - 1 >= 0 ? chunks[_x, _y, _z - 1] : null!
         };
 
+        // foliage still needs a per-block pass
         for (int x = 0; x < Size; x++)
-            for(int y = 0; y < Size; y++)
+            for (int y = 0; y < Size; y++)
                 for (int z = 0; z < Size; z++)
                 {
-                    ushort blockType = blockData[x + y * Size + z * Size * Size];
+                    if (blockData[x + y * Size + z * Size * Size] != 64511)
+                        continue; // grass card
 
-                    // special cases
-                    if(blockType > 64510)
+                    Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
+                    foliageCount++;
+                    float randomOffset = (float)(Random.Shared.NextDouble() * 0.3f - 0.15f);
+                    Vector3 ranOffsetV = new Vector3(randomOffset, 0, randomOffset);
+
+                    for (int j = 0; j < 4; j++)
                     {
-                        if(blockType == 64511) // grass card
-                        {
-                            Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
-                            foliageCount++;
-                            float randomOffset = (float)(new Random().NextDouble() * 0.3f - 0.15f);
-                            Vector3 ranOffsetV = new Vector3(randomOffset, 0, randomOffset);
+                        float angle = j * MathHelper.PiOver4;
 
-                            for (int j = 0; j < 4; j++)
-                            {
-                                float angle = j * MathHelper.PiOver4;
+                        Vector3 look = Vector3.TransformNormal(new Vector3(1, 0, 1), Matrix4.CreateRotationY(angle));
 
-                                Vector3 look = Vector3.TransformNormal(
-                                    new Vector3(1, 0, 1),
-                                    Matrix4.CreateRotationY(angle)
-                                );
+                        float offsetX = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
+                        float offsetZ = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
 
-                                float offsetX = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
-                                float offsetZ = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
+                        Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
 
-                                Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
-
-                                MeshUtility.AddQuad(
-                                    foliageVertices,
-                                    look,
-                                    offset,
-                                    "grass_card",
-                                    textureAtlas,
-                                    true,
-                                    normalAtlas,
-                                    true,
-                                    true
-                                );
-                            }
-
-                        }
-
-                        continue;
+                        MeshUtility.AddQuad(foliageVertices, look, offset, "grass_card", textureAtlas, true, normalAtlas, true, true);
                     }
-
-                    if (blockType == 0)
-                        continue; // skip air blocks
-
-                    // check neighbors
-                    byte neighborCount = 0;
-                    bool[] freeFaces = new bool[6];
-
-                    byte i = 0;
-
-                    foreach(Vector3 offset in NeighborOffsets)
-                    {
-                        ushort neighborBlockType = GetBlock(x + (int)offset.X, y + (int)offset.Y, z + (int)offset.Z);
-                        // 1024 reserved for non full blocks
-                        if (neighborBlockType != 0 && (neighborBlockType < 64511))
-                        {
-                            neighborCount++;
-                            freeFaces[i] = false;
-                        }
-                        else
-                        {
-                            freeFaces[i] = true;
-                        }
-                        i++;
-                    }
-
-                    if(neighborCount == 6)
-                    {
-                        // all neighbors are solid, skip this block
-                        continue;
-                    }
-
-                    // If the block is not air, add it to the mesh
-                    i = 0;
-                    Vector3 blockPosition = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
-                    foreach(bool free in freeFaces)
-                    {
-                        if(free)
-                            MeshUtility.AddQuad(vertices, NeighborOffsets[i], blockPosition, blockType, textureAtlas, false, normalAtlas);
-                        i++;
-                    }
-
-                    //MeshUtility.AddCube(vertices, blockPosition, new string[] { "stone", "stone", "stone", "stone", "stone", "stone" }, textureAtlas);
                 }
 
-        mesh = new Mesh(vertices.ToArray());
+        // solid blocks: greedy meshed
+        GreedyMesh(vertices, textureAtlas, neighborChunks);
 
-        if(foliageCount != 0)
-            foliageMesh = new Mesh(foliageVertices.ToArray(), true);
+        mesh = new Mesh(vertices.ToArray(), false, Position);
+
+        if (foliageCount != 0)
+            foliageMesh = new Mesh(foliageVertices.ToArray(), true, Position);
 
         sw.Stop();
         Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
@@ -182,8 +167,135 @@ public class Chunk
 
     private ushort GetBlock(int x, int y, int z, Chunk[] neighborChunks)
     {
-        if (x < 0 || y < 0 || z < 0 || x >= Size || y >= Size || z >= Size)
-            return 0;
+        if (x >= Size)
+            return neighborChunks[0]?.GetBlock(x - Size, y, z, null!) ?? 0;
+
+        if (x < 0)
+            return neighborChunks[1]?.GetBlock(x + Size, y, z, null!) ?? 0;
+
+        if (y >= Size)
+            return neighborChunks[2]?.GetBlock(x, y - Size, z, null!) ?? 0;
+
+        if (y < 0)
+            return neighborChunks[3]?.GetBlock(x, y + Size, z, null!) ?? 0;
+
+        if (z >= Size)
+            return neighborChunks[4]?.GetBlock(x, y, z - Size, null!) ?? 0;
+
+        if (z < 0)
+            return neighborChunks[5]?.GetBlock(x, y, z + Size, null!) ?? 0;
+
         return blockData[x + y * Size + z * Size * Size];
+    }
+
+    // ---------------- Greedy meshing ----------------
+
+    private static readonly int[] AxisU = { 2, 0, 0 };
+    private static readonly int[] AxisV = { 1, 2, 1 };
+
+    // 0 = air, >= 64511 = non full blocks (foliage etc.)
+    private static bool IsSolid(ushort b) => b != 0 && b < 64511;
+
+    private void GreedyMesh(List<float> vertices, TextureAtlas atlas, Chunk[] neighborChunks)
+    {
+        ushort[] mask = _mask ??= new ushort[Size * Size];
+        int[] p = _p ??= new int[3];
+
+        for (int d = 0; d < 3; d++)
+        {
+            int u = AxisU[d], v = AxisV[d];
+
+            for (int dir = -1; dir <= 1; dir += 2)
+            {
+                // sign of the "right" vector along axis u, matches AddQuad orientation
+                int su = d == 2 ? dir : -dir;
+
+                Vector3 look = Vector3.Zero;
+                look[d] = dir;
+
+                Vector3 tangent = Vector3.Zero;
+                tangent[u] = su;
+                Vector3 up = Vector3.Zero;
+                up[v] = 1;
+                float handedness = Vector3.Dot(Vector3.Cross(look, tangent), up) < 0 ? -1 : 1;
+                Vector4 tangentData = new(tangent, handedness);
+
+                for (int s = 0; s < Size; s++)
+                {
+                    // 1. build the visibility mask for this slice
+                    for (int j = 0; j < Size; j++)
+                        for (int i = 0; i < Size; i++)
+                        {
+                            p[d] = s; p[u] = i; p[v] = j;
+                            ushort block = GetBlock(p[0], p[1], p[2], neighborChunks);
+
+                            if (!IsSolid(block)) { mask[i + j * Size] = 0; continue; }
+
+                            ushort neighbor = GetBlock(p[0] + (d == 0 ? dir : 0),
+                                                       p[1] + (d == 1 ? dir : 0),
+                                                       p[2] + (d == 2 ? dir : 0),
+                                                       neighborChunks);
+
+                            mask[i + j * Size] = IsSolid(neighbor) ? (ushort)0 : block;
+                        }
+
+                    // 2. greedy merge
+                    for (int j = 0; j < Size; j++)
+                        for (int i = 0; i < Size; i++)
+                        {
+                            ushort type = mask[i + j * Size];
+                            if (type == 0) continue;
+
+                            int w = 1;
+                            while (i + w < Size && mask[i + w + j * Size] == type) w++;
+
+                            int h = 1;
+                            bool stop = false;
+                            while (j + h < Size && !stop)
+                            {
+                                for (int k = 0; k < w; k++)
+                                    if (mask[i + k + (j + h) * Size] != type) { stop = true; break; }
+                                if (!stop) h++;
+                            }
+
+                            for (int dj = 0; dj < h; dj++)
+                                for (int di = 0; di < w; di++)
+                                    mask[i + di + (j + dj) * Size] = 0;
+
+                            EmitQuad(vertices, atlas, type, d, u, v, dir, su, s, i, j, w, h,
+                                     look, tangentData);
+
+                            i += w - 1;
+                        }
+                }
+            }
+        }
+    }
+
+    private static readonly (int a, int b)[] QuadCorners =
+        { (0, 0), (0, 1), (1, 1), (0, 0), (1, 1), (1, 0) }; // same order as AddQuad
+
+    private void EmitQuad(List<float> vertices, TextureAtlas atlas, ushort type,
+                          int d, int u, int v, int dir, int su, int s, int i, int j,
+                          int w, int h, Vector3 look, Vector4 tangentData)
+    {
+        string tex = TextureNames.IdToName[type];
+
+        // atlas cell rect for this block face (assumes Map is linear in uv)
+        Vector2 min = atlas.Map(tex, new Vector2(0, 0), look);
+        Vector2 max = atlas.Map(tex, new Vector2(1, 1), look);
+        Vector4 rect = new(min.X, min.Y, max.X - min.X, max.Y - min.Y);
+
+        foreach (var (a, b) in QuadCorners)
+        {
+            Vector3 pos = Vector3.Zero;
+            pos[d] = s + 0.5f * dir;
+            pos[u] = su > 0 ? i - 0.5f + a * w : i + w - 0.5f - a * w;
+            pos[v] = j - 0.5f + b * h;
+            pos += Position;
+
+            MeshUtility.AddVertex(vertices, pos, look, new Vector2(a * w, b * h),
+                                  tangentData, 0f, rect);
+        }
     }
 }

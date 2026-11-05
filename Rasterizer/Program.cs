@@ -19,12 +19,13 @@ class Game : GameWindow
     Camera _camera = null!;
     TextureAtlas _atlas = null!;
     TextureAtlas _normalAtlas = null!;
+    private bool _wireframe = false;
 
     // --- shadow mapping ---
     const int ShadowMapSize = 4096;
     const int WorldChunks = 8;
-    Chunk[,,] _chunks = new Chunk[WorldChunks, 2, WorldChunks];
-    const float WorldHeight = 64f;   // replace with your max terrain height
+    Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
+    const float WorldHeight = 96f;   // replace with your max terrain height
 
     public double totalGenerationTime = 0.0f;
 
@@ -39,12 +40,15 @@ class Game : GameWindow
     Shader _skyShader = null!;
     int _skyVao;
 
+    Frustum cameraFrustum = new Frustum();
+    Frustum lightFrustum = new Frustum();
+
     public Game() : base(
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(1920, 1080),
-            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
+            ClientSize = new Vector2i(3440, 1440),
+            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
@@ -86,18 +90,30 @@ class Game : GameWindow
 
         Stopwatch sw = Stopwatch.StartNew();
 
-        for (int x = 0; x < WorldChunks; x++)
+        Parallel.For(0, WorldChunks, x =>
+        {
             for (int z = 0; z < WorldChunks; z++)
-                for(int y = -1; y < 1; y++)
-                    {
-                        Chunk c = new Chunk(new Vector3(x * Chunk.Size, y * Chunk.Size, z * Chunk.Size));
-                        c.Generate();
-                        c.CreateMesh(_atlas, _normalAtlas, _sceneObjects);
+                for (int y = 0; y < 3; y++)
+                {
+                    Chunk c = new Chunk(new Vector3(x * Chunk.Size, y * Chunk.Size, z * Chunk.Size));
+                    c.Generate();
+                    _chunks[x, y, z] = c;
+                }
+        });
 
-                        _sceneObjects.Add(c.mesh!);
-                        if (c.foliageMesh != null)
-                            _sceneObjects.Add(c.foliageMesh);
-                    }
+
+        Parallel.ForEach(_chunks.Cast<Chunk>(), c =>
+        {
+            c.CreateMesh(_atlas, _normalAtlas, _chunks);
+        });
+
+        foreach (var c in _chunks)
+        {
+            _sceneObjects.Add(c.mesh!);
+
+            if (c.foliageMesh != null)
+                _sceneObjects.Add(c.foliageMesh);
+        }
 
         totalGenerationTime = sw.Elapsed.TotalMilliseconds;
         sw.Stop();
@@ -180,9 +196,17 @@ class Game : GameWindow
         _normalAtlas.Bind(TextureUnit.Texture1);
         _shadowShader.SetInt("normalAtlas", 1);
 
+        lightFrustum.Update(_lightSpace);
+
         foreach (var mesh in _sceneObjects)
         {
             _shadowShader.SetInt("isFoliage", mesh.IsFoliage ? 1 : 0);
+
+            Vector3 min = mesh._meshPosition - new Vector3(0.8f);
+            Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
+
+            if (!lightFrustum.IsBoxVisible(min, max))
+                continue;
 
             if (mesh.IsFoliage)
                 GL.Disable(EnableCap.CullFace);
@@ -226,6 +250,12 @@ class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.Space)) move += Vector3.UnitY;
         if (KeyboardState.IsKeyDown(Keys.LeftShift)) move -= Vector3.UnitY;
 
+        if (KeyboardState.IsKeyPressed(Keys.F1))
+        {
+            _wireframe = !_wireframe;
+            GL.PolygonMode(TriangleFace.FrontAndBack, _wireframe ? PolygonMode.Line : PolygonMode.Fill);
+        }
+
         if (move != Vector3.Zero)
             _camera.Position += Vector3.Normalize(move) * speed * dt;
 
@@ -245,6 +275,8 @@ class Game : GameWindow
         timeSinceLastFps += e.Time;
 
         _time += (float)e.Time;
+
+        uint drawCalls = 0;
 
         RenderShadowMap();
 
@@ -319,10 +351,21 @@ class Game : GameWindow
         _normalAtlas.Bind(TextureUnit.Texture2);
         _shader.SetInt("normalAtlas", 2);
 
+        cameraFrustum.Update(view * projection);
         foreach (var mesh in _sceneObjects)
         {
+            Vector3 min = mesh._meshPosition - new Vector3(0.8f);
+            Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
+
+            if(!cameraFrustum.IsBoxVisible(min, max))
+                continue;
+
             if (!mesh.IsFoliage)
+            {
+                drawCalls++;
                 mesh.Draw();
+            }
+               
         }
 
         // Render foliage
@@ -354,8 +397,18 @@ class Game : GameWindow
 
         foreach (var mesh in _sceneObjects)
         {
+            Vector3 min = mesh._meshPosition - new Vector3(0.8f);
+            Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
+
+            if (!cameraFrustum.IsBoxVisible(min, max))
+                continue;
+
             if (mesh.IsFoliage)
+            {
+                drawCalls++;
                 mesh.Draw();
+            }
+                
         }
 
         GL.Enable(EnableCap.CullFace);
@@ -365,7 +418,7 @@ class Game : GameWindow
 
         string data = $"FPS : {Math.Round(lastFps, 0)}\n" +
             $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
-            $"Draw calls: {_sceneObjects.Count}\n" +
+            $"Draw calls: {drawCalls}\n" +
             $"Generation time: {totalGenerationTime:f1}ms\n" +
             $"Screen : {ClientSize.X} x {ClientSize.Y}";
 

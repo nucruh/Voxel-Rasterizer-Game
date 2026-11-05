@@ -1,59 +1,23 @@
 ﻿using OpenTK.Mathematics;
 
-
 public static class MeshUtility
 {
-    static readonly float[] CubeVertices =
-    {
-        -0.5f,-0.5f,-0.5f,  0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f,  -0.5f,-0.5f,-0.5f,  0.5f, 0.5f,-0.5f,  -0.5f, 0.5f,-0.5f,
-        -0.5f,-0.5f, 0.5f,  0.5f, 0.5f, 0.5f,  0.5f,-0.5f, 0.5f,  -0.5f,-0.5f, 0.5f, -0.5f, 0.5f, 0.5f,   0.5f, 0.5f, 0.5f,
-        -0.5f,-0.5f,-0.5f, -0.5f, 0.5f,-0.5f, -0.5f, 0.5f, 0.5f,  -0.5f,-0.5f,-0.5f, -0.5f, 0.5f, 0.5f,  -0.5f,-0.5f, 0.5f,
-         0.5f,-0.5f,-0.5f,  0.5f,-0.5f, 0.5f,  0.5f, 0.5f, 0.5f,   0.5f,-0.5f,-0.5f,  0.5f, 0.5f, 0.5f,   0.5f, 0.5f,-0.5f,
-        -0.5f, 0.5f,-0.5f,  0.5f, 0.5f,-0.5f,  0.5f, 0.5f, 0.5f,  -0.5f, 0.5f,-0.5f,  0.5f, 0.5f, 0.5f,  -0.5f, 0.5f, 0.5f,
-        -0.5f,-0.5f,-0.5f,  0.5f,-0.5f, 0.5f,  0.5f,-0.5f,-0.5f,  -0.5f,-0.5f,-0.5f, -0.5f,-0.5f, 0.5f,   0.5f,-0.5f, 0.5f,
-    };
+    public const int FloatsPerVertex = 17;
 
-    public static void AddVertex(List<float> v, Vector3 p, Vector3 normal, Vector2 uv, Vector4 tangent, float weight)
+    // pos(3) normal(3) uv(2) tangent(4) weight(1) tileRect(4)
+    // tileRect = (atlasMinU, atlasMinV, cellWidth, cellHeight). Zero width = no tiling (foliage).
+    public static void AddVertex(List<float> v, Vector3 p, Vector3 normal, Vector2 uv,
+                                 Vector4 tangent, float weight, Vector4 tileRect = default)
     {
         v.AddRange(new[]
         {
-        p.X, p.Y, p.Z,
-        normal.X, normal.Y, normal.Z,
-        uv.X, uv.Y,
-        tangent.X, tangent.Y, tangent.Z, tangent.W,
-        weight
-    });
-    }
-
-    // Upright, unmirrored UV (0..1) for a cube face seen from outside.
-    public static Vector2 FaceUV(int face, Vector3 p) => face switch
-    {
-        0 => new Vector2(0.5f - p.X, p.Y + 0.5f), // back
-        1 => new Vector2(p.X + 0.5f, p.Y + 0.5f), // front
-        2 => new Vector2(p.Z + 0.5f, p.Y + 0.5f), // left
-        3 => new Vector2(0.5f - p.Z, p.Y + 0.5f), // right
-        4 => new Vector2(p.X + 0.5f, 0.5f - p.Z), // top
-        _ => new Vector2(p.X + 0.5f, p.Z + 0.5f), // bottom
-    };
-
-    static readonly Vector3[] CubeNormals =
-    {
-        -Vector3.UnitZ, // back
-         Vector3.UnitZ, // front
-        -Vector3.UnitX, // left
-         Vector3.UnitX, // right
-         Vector3.UnitY, // top
-        -Vector3.UnitY  // bottom
-    };
-
-    public static void AddCube(List<float> v, Vector3 offset, string[] faceTextures, TextureAtlas _atlas)
-    {
-        for (int i = 0; i < 36; i++)
-        {
-            int face = i / 6;
-            Vector3 p = new(CubeVertices[i * 3], CubeVertices[i * 3 + 1], CubeVertices[i * 3 + 2]);
-            //AddVertex(v, p + offset, CubeNormals[face], _atlas.Map(_atlas.Id(faceTextures[face]), FaceUV(face, p)));
-        }
+            p.X, p.Y, p.Z,
+            normal.X, normal.Y, normal.Z,
+            uv.X, uv.Y,
+            tangent.X, tangent.Y, tangent.Z, tangent.W,
+            weight,
+            tileRect.X, tileRect.Y, tileRect.Z, tileRect.W
+        });
     }
 
     public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, string texture, TextureAtlas _atlas, bool skipRecenter = false, TextureAtlas _normalAtlas = null!, bool heightPaint = false, bool upNormal = false)
@@ -85,7 +49,6 @@ public static class MeshUtility
             Vector3 normal = upNormal ? Vector3.UnitY : look;
             AddVertex(v, pos[i] + center, normal, _atlas.Map(texture, uv[i], look), tangentData, (pos[i].Y + 0.5f) * weightMod);
         }
-            
     }
 
     public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture, TextureAtlas _atlas, bool skipRecenter = false, TextureAtlas _normalAtlas = null!, bool heightPaint = false, bool upNormal = false)
