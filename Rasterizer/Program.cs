@@ -23,7 +23,7 @@ class Game : GameWindow
     private bool _wireframe = false;
 
     // --- shadow mapping ---
-    const int ShadowMapSize = 4096;
+    const int ShadowMapSize = 16384;
     const int WorldChunks = 8;
     Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
     const float WorldHeight = 96f;   // replace with your max terrain height
@@ -271,16 +271,20 @@ class Game : GameWindow
             Vector3 min = mesh._meshPosition - new Vector3(0.8f);
             Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
 
-            if (!lightFrustum.IsBoxVisible(min, max))
-                continue;
+            //if (!lightFrustum.IsBoxVisible(min, max))
+                //continue;
 
             if (mesh.IsFoliage)
-                GL.Disable(EnableCap.CullFace);
+            {
+                continue;
+                //GL.Disable(EnableCap.CullFace);
+            }
+                
 
             mesh.Draw();
 
-            if (mesh.IsFoliage)
-                GL.Enable(EnableCap.CullFace);
+            //if (mesh.IsFoliage)
+                //GL.Enable(EnableCap.CullFace);
         }
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
