@@ -24,7 +24,7 @@ public class Chunk
         IsEmpty = false;
     }
 
-    const ushort AIR = 0, STONE = 1, GRASS = 2, GRASS_CARD = 64511;
+    const ushort AIR = 0, STONE = 3, GRASS = 2, GRASS_CARD = 64511, DIRT = 1;
 
     // tweak these
     const float BaseHeight = 32f;
@@ -68,6 +68,8 @@ public class Chunk
     {
         int py = (int)Position.Y;
 
+        int[,,] treeSpots = new int[Size, Size, Size];
+
         for (int x = 0; x < Size; x++)
             for (int z = 0; z < Size; z++)
             {
@@ -87,23 +89,104 @@ public class Chunk
                 {
                     int wy = y + py;
                     ushort id = AIR;
-                    if (wy < height) id = STONE;
-                    else if (wy == height) id = topBlock;
+                    if (wy < height - 3)
+                        id = STONE;
+                    else if (wy < height)
+                        id = rocky ? STONE : DIRT;
+                    else if (wy == height)
+                        id = topBlock;
                     blockData[GetLocalIdInChunk(x, y, z)] = id;
                 }
 
                 int grassY = height - py;
                 if (grassY < 0 || grassY + 1 >= Size) continue;
 
+                float hash = Hash01((int)wx, (int)wz);
                 // grass cards only on grass, thinned out randomly
-                if (!rocky && Hash01((int)wx, (int)wz) < 0.85f)
-                    blockData[GetLocalIdInChunk(x, grassY + 1, z)] = GRASS_CARD;
+                if (!rocky && hash < 0.85f)
+                    blockData[GetLocalIdInChunk(x, grassY + 1, z)] = 64511;
+                else if (!rocky && hash < 0.9f)
+                    treeSpots[x, grassY + 1, z] = 1;
             }
+
+
+        for (int _x = 0; _x < Size; _x++)
+            for (int _y = 0; _y < Size; _y++)
+                for (int _z = 0; _z < Size; _z++)
+                {
+                    if (treeSpots[_x, _y, _z] == 1)
+                    {
+                        int treeHeight = Random.Shared.Next(4, 7);
+                        for (int y = 0; y < treeHeight; y++)
+                        {
+                            if (_y + y >= Size) break;
+                            blockData[GetLocalIdInChunk(_x, _y + y, _z)] = 4; // oak log
+                        }
+                        int leafStartY = _y + treeHeight - 2;
+                        int leafEndY = Math.Min(_y + treeHeight + 1, Size - 1);
+                        for (int y = leafStartY; y <= leafEndY; y++)
+                        {
+                            int radius = (y == leafStartY || y == leafEndY) ? 1 : 2;
+                            for (int dx = -radius; dx <= radius; dx++)
+                                for (int dz = -radius; dz <= radius; dz++)
+                                {
+                                    if (Math.Abs(dx) + Math.Abs(dz) > radius) continue;
+                                    int lx = _x + dx;
+                                    int lz = _z + dz;
+                                    if (lx < 0 || lx >= Size || lz < 0 || lz >= Size) continue;
+                                    if (blockData[GetLocalIdInChunk(lx, y, lz)] == AIR)
+                                        blockData[GetLocalIdInChunk(lx, y, lz)] = 64512; // oak leaf
+                                }
+                        }
+                    }
+                }
     }
 
     public int GetLocalIdInChunk(int x, int y, int z)
     {
         return x + y * Size + z * Size * Size;
+    }
+
+    private void GrassCardGen(int x, int y, int z, TextureAtlas textureAtlas, TextureAtlas normalAtlas)
+    {
+        Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
+        foliageCount++;
+        float randomOffset = (float)(Random.Shared.NextDouble() * 0.3f - 0.15f);
+        Vector3 ranOffsetV = new Vector3(randomOffset, 0, randomOffset);
+
+        for (int j = 0; j < 4; j++)
+        {
+            float angle = j * MathHelper.PiOver4;
+
+            Vector3 look = Vector3.TransformNormal(new Vector3(1, 0, 1), Matrix4.CreateRotationY(angle));
+
+            float offsetX = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
+            float offsetZ = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
+
+            Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
+
+            MeshUtility.AddQuad(foliageVertices, look, offset, "grass_card", textureAtlas, true, normalAtlas, true, true);
+        }
+    }
+
+    private void LeafBlockGen(int x, int y, int z, TextureAtlas textureAtlas, TextureAtlas normalAtlas)
+    {
+        Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
+        foliageCount++;
+        for (int j = 0; j < 2; j++)
+        {
+            float angle = j * MathHelper.PiOver4;
+            Vector3 look = Vector3.TransformNormal(new Vector3(1, 1, 1), Matrix4.CreateRotationY(angle));
+            MeshUtility.AddQuad(foliageVertices, look, _BP, "oak_leaf", textureAtlas, true, normalAtlas, true, true);
+        }
+
+        // block cube
+        for (int i = 0; i < 6; i++)
+        {
+            Vector3 look = Vector3.Zero;
+            look[i / 2] = (i % 2 == 0) ? 1 : -1;
+            MeshUtility.AddQuad(foliageVertices, look, _BP + Vector3.One * 0.5f, "oak_leaf", textureAtlas, true, normalAtlas, true, true);
+        }
     }
 
     public void CreateMesh(TextureAtlas textureAtlas, TextureAtlas normalAtlas, Chunk[,,] chunks)
@@ -134,27 +217,15 @@ public class Chunk
             for (int y = 0; y < Size; y++)
                 for (int z = 0; z < Size; z++)
                 {
-                    if (blockData[x + y * Size + z * Size * Size] != 64511)
-                        continue; // grass card
+                    ushort block = blockData[x + y * Size + z * Size * Size];
+                    if (block < 64511)
+                        continue; // solid block are handled by greedy meshin
 
-                    Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
-                    foliageCount++;
-                    float randomOffset = (float)(Random.Shared.NextDouble() * 0.3f - 0.15f);
-                    Vector3 ranOffsetV = new Vector3(randomOffset, 0, randomOffset);
+                    if (block == 64511) // grass card
+                        GrassCardGen(x, y, z, textureAtlas, normalAtlas);
+                    else if (block == 64512) // oak leaf
+                        LeafBlockGen(x, y, z, textureAtlas, normalAtlas);
 
-                    for (int j = 0; j < 4; j++)
-                    {
-                        float angle = j * MathHelper.PiOver4;
-
-                        Vector3 look = Vector3.TransformNormal(new Vector3(1, 0, 1), Matrix4.CreateRotationY(angle));
-
-                        float offsetX = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
-                        float offsetZ = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
-
-                        Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
-
-                        MeshUtility.AddQuad(foliageVertices, look, offset, "grass_card", textureAtlas, true, normalAtlas, true, true);
-                    }
                 }
 
         // solid blocks: greedy meshed

@@ -23,8 +23,8 @@ class Game : GameWindow
     private bool _wireframe = false;
 
     // --- shadow mapping ---
-    const int ShadowMapSize = 16384;
-    const int WorldChunks = 8;
+    const int ShadowMapSize = 4096;
+    const int WorldChunks = 4;
     Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
     const float WorldHeight = 96f;   // replace with your max terrain height
 
@@ -59,12 +59,12 @@ class Game : GameWindow
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(1920, 1080),
-            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
+            ClientSize = new Vector2i(3440, 1440),
+            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.Off,
+            Vsync = VSyncMode.On,
             WindowBorder = WindowBorder.Hidden
         })
     {
@@ -276,15 +276,15 @@ class Game : GameWindow
 
             if (mesh.IsFoliage)
             {
-                continue;
-                //GL.Disable(EnableCap.CullFace);
+                //continue;
+                GL.Disable(EnableCap.CullFace);
             }
                 
 
             mesh.Draw();
 
-            //if (mesh.IsFoliage)
-                //GL.Enable(EnableCap.CullFace);
+            if (mesh.IsFoliage)
+                GL.Enable(EnableCap.CullFace);
         }
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
