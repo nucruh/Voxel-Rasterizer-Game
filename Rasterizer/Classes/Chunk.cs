@@ -9,6 +9,10 @@ public class Chunk
     public Mesh? mesh;
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
+    private int foliageCount = 0;
+
+    private List<float> vertices = new List<float>();
+    private List<float> foliageVertices = new List<float>();
 
     // reused between builds so we don't allocate per slice / per chunk
     [ThreadStatic] private static ushort[]? _mask;
@@ -105,10 +109,10 @@ public class Chunk
     public void CreateMesh(TextureAtlas textureAtlas, TextureAtlas normalAtlas, Chunk[,,] chunks)
     {
         Stopwatch sw = Stopwatch.StartNew();
-        List<float> vertices = new List<float>();
+        vertices = new List<float>();
 
-        int foliageCount = 0;
-        List<float> foliageVertices = new List<float>();
+        foliageCount = 0;
+        foliageVertices = new List<float>();
 
         int _x = (int)(Position.X / Size);
         int _y = (int)(Position.Y / Size);
@@ -156,13 +160,19 @@ public class Chunk
         // solid blocks: greedy meshed
         GreedyMesh(vertices, textureAtlas, neighborChunks);
 
+        sw.Stop();
+        Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
+    }
+
+    public void ApplyMesh()
+    {
         mesh = new Mesh(vertices.ToArray(), false, Position);
 
         if (foliageCount != 0)
             foliageMesh = new Mesh(foliageVertices.ToArray(), true, Position);
 
-        sw.Stop();
-        Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
+        // make some code that disposes the list of vertices and foliageVertices after the mesh is applied, to free up memory, also somehow make it so that apply mesh is run immediately after create mesh for each chunk
+        // dont wait for all to generate
     }
 
     private ushort GetBlock(int x, int y, int z, Chunk[] neighborChunks)

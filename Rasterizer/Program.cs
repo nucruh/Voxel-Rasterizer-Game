@@ -6,6 +6,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Diagnostics;
 using static BitmapFontRenderer;
 using static MeshUtility;
+using System.Runtime.InteropServices;
 
 using GameWindow = OpenTK.Windowing.Desktop.GameWindow;
 
@@ -35,10 +36,11 @@ class Game : GameWindow
     Matrix4 _lightSpace;
     Vector3 _lightDir = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.3f)); // direction the light TRAVELS
     float _texelWorld;
-    float _time;
+    double _time;
 
     Shader _skyShader = null!;
     int _skyVao;
+    private readonly VramMonitor _vram = new();
 
     Frustum cameraFrustum = new Frustum();
     Frustum lightFrustum = new Frustum();
@@ -56,6 +58,53 @@ class Game : GameWindow
             WindowBorder = WindowBorder.Hidden
         })
     {
+    }
+
+    long GetRamUsage()
+    {
+        using Process process = Process.GetCurrentProcess();
+        return process.WorkingSet64 / (1024 * 1024);
+    }
+
+    public sealed class VramMonitor
+    {
+        private readonly List<PerformanceCounter> _dedicated = new();
+        private readonly string _pidPrefix = $"pid_{Environment.ProcessId}_";
+        private double _nextPoll;
+        private long _cachedBytes;
+
+        // Call once per frame; pass total elapsed seconds. Polls twice per second.
+        public long GetDedicatedBytes(double timeSeconds)
+        {
+            if (!OperatingSystem.IsWindows()) return -1;
+            if (timeSeconds < _nextPoll) return _cachedBytes;
+            _nextPoll = timeSeconds + 0.5;
+
+            try
+            {
+                // Instances only appear once the GPU is in use, so enumerate lazily.
+                if (_dedicated.Count == 0)
+                {
+                    var cat = new PerformanceCounterCategory("GPU Process Memory");
+                    foreach (string inst in cat.GetInstanceNames())
+                        if (inst.StartsWith(_pidPrefix))
+                            _dedicated.Add(new PerformanceCounter(
+                                "GPU Process Memory", "Dedicated Usage", inst, true));
+                }
+
+                long sum = 0;
+                foreach (var c in _dedicated)
+                    sum += (long)c.NextValue();
+
+                _cachedBytes = sum;
+            }
+            catch
+            {
+                _dedicated.Clear(); // instance vanished, re-enumerate next poll
+            }
+
+            return _cachedBytes;
+        }
     }
 
     protected override void OnLoad()
@@ -106,6 +155,11 @@ class Game : GameWindow
         {
             c.CreateMesh(_atlas, _normalAtlas, _chunks);
         });
+
+        foreach (var c in _chunks)
+        {
+            c.ApplyMesh();
+        }
 
         foreach (var c in _chunks)
         {
@@ -188,7 +242,7 @@ class Game : GameWindow
         _shadowShader.Use();
         _shadowShader.SetMatrix4("model", Matrix4.Identity);
         _shadowShader.SetMatrix4("lightSpace", _lightSpace);
-        _shadowShader.SetFloat("time", _time);
+        _shadowShader.SetFloat("time", (float)_time);
 
         _atlas.Bind(TextureUnit.Texture0);
         _shadowShader.SetInt("atlas", 0);
@@ -274,7 +328,7 @@ class Game : GameWindow
         timeFrame += 1.0 / e.Time;
         timeSinceLastFps += e.Time;
 
-        _time += (float)e.Time;
+        _time += e.Time;
 
         uint drawCalls = 0;
 
@@ -379,7 +433,7 @@ class Game : GameWindow
         _foliageShader.SetVector3("lightDir", _lightDir);
         _foliageShader.SetFloat("texelWorld", _texelWorld);
         _foliageShader.SetVector3("uCamPos", _camera.Position);
-        _foliageShader.SetFloat("time", _time);
+        _foliageShader.SetFloat("time", (float)_time);
 
         GL.ActiveTexture(TextureUnit.Texture1);
         GL.BindTexture(TextureTarget.Texture2D, _shadow.Texture);
@@ -416,7 +470,9 @@ class Game : GameWindow
         float marginScaleX = (float)(GlyphPixelW + TextScale) / ClientSize.X;
         float marginScaleY = (float)(GlyphPixelH + TextScale * 2) / ClientSize.Y;
 
-        string data = $"FPS : {Math.Round(lastFps, 0)}\n" +
+        string data = $"RAM: {GetRamUsage()} MB\n" +
+            $"VRAM: {_vram.GetDedicatedBytes(_time) / (1024f * 1024f)} MB\n" +
+            $"FPS : {Math.Round(lastFps, 0)}\n" +
             $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
             $"Draw calls: {drawCalls}\n" +
             $"Generation time: {totalGenerationTime:f1}ms\n" +
