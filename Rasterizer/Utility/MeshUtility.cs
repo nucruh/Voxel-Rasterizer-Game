@@ -20,14 +20,28 @@ public static class MeshUtility
         });
     }
 
-    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, string texture, TextureAtlas _atlas, bool skipRecenter = false, TextureAtlas _normalAtlas = null!, bool heightPaint = false, bool upNormal = false)
+    public static void AddQuad(
+        List<float> v,
+        Vector3 look,
+        Vector3 offset,
+        string texture,
+        bool skipRecenter = false,
+        bool heightPaint = false,
+        bool upNormal = false,
+        float minWeight = 0.0f,
+        float maxWeight = 0.0f,
+        float size = 1.0f
+        )
     {
         look = Vector3.Normalize(look);
 
         Vector3 reference = MathF.Abs(look.Y) > 0.999f ? Vector3.UnitZ : Vector3.UnitY;
 
-        Vector3 right = Vector3.Normalize(Vector3.Cross(reference, look)) * 0.5f;
-        Vector3 up = Vector3.Normalize(Vector3.Cross(look, right)) * 0.5f;
+        Vector3 rightDir = Vector3.Normalize(Vector3.Cross(reference, look));
+        Vector3 upDir = Vector3.Normalize(Vector3.Cross(look, rightDir));
+
+        Vector3 right = rightDir * 0.5f * size;
+        Vector3 up = upDir * 0.5f * size;
 
         Vector3[] pos = { -right - up, -right + up, right + up, -right - up, right + up, right - up };
         Vector2[] uv = { new(0, 0), new(0, 1), new(1, 1), new(0, 0), new(1, 1), new(1, 0) };
@@ -37,23 +51,25 @@ public static class MeshUtility
         if (!skipRecenter)
             center += look * 0.5f;
 
-        Vector3 tangent = Vector3.Normalize(right);
-        float handedness = Vector3.Dot(Vector3.Cross(look, tangent), up) < 0 ? -1 : 1;
-
+        // tangent/handedness use the unscaled directions
+        Vector3 tangent = rightDir;
+        float handedness = Vector3.Dot(Vector3.Cross(look, tangent), upDir) < 0 ? -1 : 1;
         Vector4 tangentData = new(tangent, handedness);
-
-        float weightMod = heightPaint ? 1.0f : 0.0f;
 
         for (int i = 0; i < 6; i++)
         {
             Vector3 normal = upNormal ? Vector3.UnitY : look;
-            AddVertex(v, pos[i] + center, normal, _atlas.Map(texture, uv[i], look), tangentData, (pos[i].Y + 0.5f) * weightMod);
+
+            // pos[i].Y is now in [-0.5*size, 0.5*size], so normalize it for the weight lerp
+            float weight = heightPaint ? MathHelper.Lerp(minWeight, maxWeight, pos[i].Y / size + 0.5f) : 0.0f;
+
+            AddVertex(v, pos[i] + center, normal, Game._atlas.Map(texture, uv[i], look), tangentData, weight);
         }
     }
 
-    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture, TextureAtlas _atlas, bool skipRecenter = false, TextureAtlas _normalAtlas = null!, bool heightPaint = false, bool upNormal = false)
+    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture, bool skipRecenter = false, bool heightPaint = false, bool upNormal = false, float minWeight = 0.0f, float maxWeight = 0.0f, float size = 1.0f)
     {
-        AddQuad(v, look, offset, TextureNames.IdToName[texture], _atlas, skipRecenter, _normalAtlas, heightPaint, upNormal);
+        AddQuad(v, look, offset, TextureNames.IdToName[texture], skipRecenter, heightPaint, upNormal, minWeight, maxWeight, size);
     }
 
     public static int GetTotalTriangles(Mesh[] meshes)

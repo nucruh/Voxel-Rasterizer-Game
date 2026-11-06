@@ -147,7 +147,7 @@ public class Chunk
         return x + y * Size + z * Size * Size;
     }
 
-    private void GrassCardGen(int x, int y, int z, TextureAtlas textureAtlas, TextureAtlas normalAtlas)
+    private void GrassCardGen(int x, int y, int z)
     {
         Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
         foliageCount++;
@@ -165,31 +165,41 @@ public class Chunk
 
             Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
 
-            MeshUtility.AddQuad(foliageVertices, look, offset, "grass_card", textureAtlas, true, normalAtlas, true, true);
+            MeshUtility.AddQuad(foliageVertices, look, offset, "grass_card", true, true, true, 0.0f, 1.0f);
         }
     }
 
-    private void LeafBlockGen(int x, int y, int z, TextureAtlas textureAtlas, TextureAtlas normalAtlas)
+    private void LeafBlockGen(int x, int y, int z)
     {
-        Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
+        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
         foliageCount++;
-        for (int j = 0; j < 2; j++)
-        {
-            float angle = j * MathHelper.PiOver4;
-            Vector3 look = Vector3.TransformNormal(new Vector3(1, 1, 1), Matrix4.CreateRotationY(angle));
-            MeshUtility.AddQuad(foliageVertices, look, _BP, "oak_leaf", textureAtlas, true, normalAtlas, true, true);
-        }
 
-        // block cube
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 5; i++)
         {
-            Vector3 look = Vector3.Zero;
-            look[i / 2] = (i % 2 == 0) ? 1 : -1;
-            MeshUtility.AddQuad(foliageVertices, look, _BP + Vector3.One * 0.5f, "oak_leaf", textureAtlas, true, normalAtlas, true, true);
+            float pitch = Random.Shared.NextSingle() * MathF.PI;
+            float yaw = Random.Shared.NextSingle() * MathF.Tau;
+            float roll = Random.Shared.NextSingle() * MathF.Tau;
+
+            Quaternion rotation =
+                Quaternion.FromAxisAngle(Vector3.UnitX, pitch) *
+                Quaternion.FromAxisAngle(Vector3.UnitY, yaw) *
+                Quaternion.FromAxisAngle(Vector3.UnitZ, roll);
+
+            Vector3 look = Vector3.Transform(Vector3.UnitZ, rotation);
+
+            float scale = 0.8f + Random.Shared.NextSingle() * 0.4f;
+
+            MeshUtility.AddQuad(
+                foliageVertices,
+                look,
+                _BP,
+                "oak_leaf",
+                true, true, true,
+                0.2f, 0.2f, scale);
         }
     }
 
-    public void CreateMesh(TextureAtlas textureAtlas, TextureAtlas normalAtlas, Chunk[,,] chunks)
+    public void CreateMesh(Chunk[,,] chunks)
     {
         Stopwatch sw = Stopwatch.StartNew();
         vertices = new List<float>();
@@ -222,14 +232,14 @@ public class Chunk
                         continue; // solid block are handled by greedy meshin
 
                     if (block == 64511) // grass card
-                        GrassCardGen(x, y, z, textureAtlas, normalAtlas);
+                        GrassCardGen(x, y, z);
                     else if (block == 64512) // oak leaf
-                        LeafBlockGen(x, y, z, textureAtlas, normalAtlas);
+                        LeafBlockGen(x, y, z);
 
                 }
 
         // solid blocks: greedy meshed
-        GreedyMesh(vertices, textureAtlas, neighborChunks);
+        GreedyMesh(vertices, neighborChunks);
 
         sw.Stop();
         Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
@@ -277,7 +287,7 @@ public class Chunk
     // 0 = air, >= 64511 = non full blocks (foliage etc.)
     private static bool IsSolid(ushort b) => b != 0 && b < 64511;
 
-    private void GreedyMesh(List<float> vertices, TextureAtlas atlas, Chunk[] neighborChunks)
+    private void GreedyMesh(List<float> vertices, Chunk[] neighborChunks)
     {
         ushort[] mask = _mask ??= new ushort[Size * Size];
         int[] p = _p ??= new int[3];
@@ -343,7 +353,7 @@ public class Chunk
                                 for (int di = 0; di < w; di++)
                                     mask[i + di + (j + dj) * Size] = 0;
 
-                            EmitQuad(vertices, atlas, type, d, u, v, dir, su, s, i, j, w, h,
+                            EmitQuad(vertices, Game._atlas, type, d, u, v, dir, su, s, i, j, w, h,
                                      look, tangentData);
 
                             i += w - 1;

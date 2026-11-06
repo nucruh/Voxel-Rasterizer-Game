@@ -13,37 +13,37 @@ using GameWindow = OpenTK.Windowing.Desktop.GameWindow;
 using var game = new Game();
 game.Run();
 
-class Game : GameWindow
+public class Game : GameWindow
 {
-    Shader _shader = null!;
-    List<Mesh> _sceneObjects = new List<Mesh>();
-    Camera _camera = null!;
-    TextureAtlas _atlas = null!;
-    TextureAtlas _normalAtlas = null!;
+    private Shader _shader = null!;
+    private List<Mesh> _sceneObjects = new List<Mesh>();
+    private Camera _camera = null!;
+    public static TextureAtlas _atlas = null!;
+    public static TextureAtlas _normalAtlas = null!;
     private bool _wireframe = false;
 
     // --- shadow mapping ---
-    const int ShadowMapSize = 4096;
-    const int WorldChunks = 4;
-    Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
-    const float WorldHeight = 96f;   // replace with your max terrain height
+    private const int ShadowMapSize = 4096;
+    private const int WorldChunks = 4;
+    private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
+    private const float WorldHeight = 96f;   // replace with your max terrain height
 
     public double totalGenerationTime = 0.0f;
 
-    Shader _shadowShader = null!;
-    ShadowMap _shadow = null!;
-    Shader _foliageShader = null!;
-    Matrix4 _lightSpace;
-    Vector3 _lightDir = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.3f)); // direction the light TRAVELS
-    float _texelWorld;
-    double _time;
+    private Shader _shadowShader = null!;
+    private ShadowMap _shadow = null!;
+    private Shader _foliageShader = null!;
+    private Matrix4 _lightSpace;
+    private Vector3 _lightDir = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.3f)); // direction the light TRAVELS
+    private float _texelWorld;
+    private double _time;
 
-    Shader _skyShader = null!;
-    int _skyVao;
+    private Shader _skyShader = null!;
+    private int _skyVao;
     private readonly VramMonitor _vram = new();
 
-    Frustum cameraFrustum = new Frustum();
-    Frustum lightFrustum = new Frustum();
+    private Frustum cameraFrustum = new Frustum();
+    private Frustum lightFrustum = new Frustum();
 
     private float shadowTimer = 0.0f;
     private const float SHADOW_MAP_RATE = 30.0f;
@@ -165,7 +165,7 @@ class Game : GameWindow
 
         Parallel.ForEach(_chunks.Cast<Chunk>(), c =>
         {
-            c.CreateMesh(_atlas, _normalAtlas, _chunks);
+            c.CreateMesh(_chunks);
         });
 
         foreach (var c in _chunks)
