@@ -45,12 +45,22 @@ class Game : GameWindow
     Frustum cameraFrustum = new Frustum();
     Frustum lightFrustum = new Frustum();
 
+    private float shadowTimer = 0.0f;
+    private const float SHADOW_MAP_RATE = 30.0f;
+
+    private float infoTimer = 0.0f;
+    private const float INFO_TIMER_RATE = 0.5f;
+
+    private float ramUsage = 0.0f;
+    private float vramUsage = 0.0f;
+
+
     public Game() : base(
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(3440, 1440),
-            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
+            ClientSize = new Vector2i(1920, 1080),
+            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
@@ -58,12 +68,6 @@ class Game : GameWindow
             WindowBorder = WindowBorder.Hidden
         })
     {
-    }
-
-    long GetRamUsage()
-    {
-        using Process process = Process.GetCurrentProcess();
-        return process.WorkingSet64 / (1024 * 1024);
     }
 
     public sealed class VramMonitor
@@ -107,6 +111,12 @@ class Game : GameWindow
         }
     }
 
+    long GetRamUsage()
+    {
+        using Process process = Process.GetCurrentProcess();
+        return process.WorkingSet64 / (1024 * 1024);
+    }
+
     protected override void OnLoad()
     {
         base.OnLoad();
@@ -116,6 +126,8 @@ class Game : GameWindow
         SystemInfo.glslVersion = GL.GetString(StringName.ShadingLanguageVersion);
 
         InitTextRendering(ClientSize.X, ClientSize.Y);
+        ramUsage = GetRamUsage();
+        vramUsage = _vram.GetDedicatedBytes(0);
 
         _camera = new Camera(new Vector3(3, 2, 4), Vector3.Zero);
         CursorState = CursorState.Grabbed;
@@ -332,7 +344,20 @@ class Game : GameWindow
 
         uint drawCalls = 0;
 
-        RenderShadowMap();
+        shadowTimer += (float)e.Time;
+        if(shadowTimer >= 1.0 / SHADOW_MAP_RATE)
+        {
+            shadowTimer = 0;
+            RenderShadowMap();
+        }
+
+        infoTimer += (float)e.Time;
+        if(infoTimer >= 1.0 / INFO_TIMER_RATE)
+        {
+            infoTimer = 0;
+            ramUsage = GetRamUsage();
+            vramUsage = _vram.GetDedicatedBytes(_time);
+        }
 
         if (timeSinceLastFps >= 0.5)
         {
@@ -470,8 +495,8 @@ class Game : GameWindow
         float marginScaleX = (float)(GlyphPixelW + TextScale) / ClientSize.X;
         float marginScaleY = (float)(GlyphPixelH + TextScale * 2) / ClientSize.Y;
 
-        string data = $"RAM: {GetRamUsage()} MB\n" +
-            $"VRAM: {_vram.GetDedicatedBytes(_time) / (1024f * 1024f)} MB\n" +
+        string data = $"RAM: {ramUsage} MB\n" +
+            $"VRAM: {vramUsage / (1024f * 1024f):f0} MB\n" +
             $"FPS : {Math.Round(lastFps, 0)}\n" +
             $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
             $"Draw calls: {drawCalls}\n" +
