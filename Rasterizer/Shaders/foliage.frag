@@ -74,6 +74,52 @@ vec3 ApplyFog(vec3 color, float depth)
     return mix(color, fogColor, fogFactor);
 }
 
+float Hash01(ivec3 p)
+{
+    uvec3 v = uvec3(p);
+    uint h = v.x * 1597334673u ^ v.y * 3812015801u ^ v.z * 2798796415u;
+    h ^= h >> 16; h *= 0x7feb352du;
+    h ^= h >> 15; h *= 0x846ca68bu;
+    h ^= h >> 16;
+    return float(h) * (1.0 / 4294967295.0);
+}
+
+float ValueNoise(vec3 p)
+{
+    ivec3 i = ivec3(floor(p));
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float n000 = Hash01(i);
+    float n100 = Hash01(i + ivec3(1, 0, 0));
+    float n010 = Hash01(i + ivec3(0, 1, 0));
+    float n110 = Hash01(i + ivec3(1, 1, 0));
+    float n001 = Hash01(i + ivec3(0, 0, 1));
+    float n101 = Hash01(i + ivec3(1, 0, 1));
+    float n011 = Hash01(i + ivec3(0, 1, 1));
+    float n111 = Hash01(i + ivec3(1, 1, 1));
+
+    return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+               mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
+}
+
+vec3 FoliageTint(vec3 worldPos, vec3 geoNormal)
+{
+    // Nudge into the block so all faces of a voxel hash to the same cell
+    ivec3 cell = ivec3(floor(worldPos - geoNormal * 0.01));
+
+    float perBlock = Hash01(cell);                    // speckle
+    float patch_    = ValueNoise(worldPos * (1.0 / 8.0)); // large-scale variation
+
+    float t = clamp(patch_ * 0.75 + perBlock * 0.25, 0.0, 1.0);
+
+    const vec3 cool = vec3(0.88, 1.00, 1.06); // bluer green
+    const vec3 warm = vec3(1.08, 1.04, 0.82); // yellower green
+
+    float brightness = 1.0 + (perBlock - 0.5) * 0.12;
+    return mix(cool, warm, t) * brightness;
+}
+
 void main()
 {
     vec4 color = texture(atlas, texCoord);
@@ -85,6 +131,7 @@ void main()
 
     // normals
     vec3 N = normalize(vertexNormal);
+    vec3 geoN = N; // keep the geometric normal for the foliage hash
     vec3 T = normalize(vTangent - dot(vTangent, N) * N);
     vec3 B = cross(N, T) * vTangentHandedness;
 
@@ -92,10 +139,12 @@ void main()
 
     vec3 normalSample = texture(normalAtlas, texCoord).rgb;
     normalSample = normalize(normalSample * 2.0 - 1.0);
-
     normalSample = normalize(mix(vec3(0.0, 0.0, 1.0), normalSample, NORMAL_STRENGTH));
 
     N = normalize(TBN * normalSample);
+
+    // Foliage variation
+    color.rgb *= FoliageTint(vWorldPos, geoN);
 
     // Lighting
     float ndl = max(dot(N, -lightDir), 0.0);
@@ -106,9 +155,6 @@ void main()
     color.rgb *= lighting;
     color.rgb = ACESFilm(color.rgb, 0.713);
     color.rgb = ApplyFog(color.rgb, depth);
-
-
-    //FragColor = vec4(texture(normalAtlas, texCoord).rgb, 1.0);
 
     FragColor = color;
 }

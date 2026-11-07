@@ -22,9 +22,11 @@ public class Game : GameWindow
     public static TextureAtlas _normalAtlas = null!;
     private bool _wireframe = false;
 
+    public static int _worldSeed = 1234;
+
     // --- shadow mapping ---
     private const int ShadowMapSize = 4096;
-    private const int WorldChunks = 4;
+    private const int WorldChunks = 8;
     private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
     private const float WorldHeight = 96f;   // replace with your max terrain height
 
@@ -151,6 +153,7 @@ public class Game : GameWindow
 
         Stopwatch sw = Stopwatch.StartNew();
 
+        // firs paralell pass; gen chunks
         Parallel.For(0, WorldChunks, x =>
         {
             for (int z = 0; z < WorldChunks; z++)
@@ -162,19 +165,24 @@ public class Game : GameWindow
                 }
         });
 
+        // second parallel pass; overflow
+        Parallel.ForEach(_chunks.Cast<Chunk>(), c =>
+        {
+            // overflow blocks generated in first pass
+            c.ApplyOverflow(_chunks);
+        });
 
+        // third parallel pass; mesh gen
         Parallel.ForEach(_chunks.Cast<Chunk>(), c =>
         {
             c.CreateMesh(_chunks);
         });
 
+
+        // fourth pass; upload meshes to gpu, add to scene
         foreach (var c in _chunks)
         {
             c.ApplyMesh();
-        }
-
-        foreach (var c in _chunks)
-        {
             _sceneObjects.Add(c.mesh!);
 
             if (c.foliageMesh != null)
@@ -271,8 +279,8 @@ public class Game : GameWindow
             Vector3 min = mesh._meshPosition - new Vector3(0.8f);
             Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
 
-            //if (!lightFrustum.IsBoxVisible(min, max))
-                //continue;
+            if (!lightFrustum.IsBoxVisible(min, max))
+                continue;
 
             if (mesh.IsFoliage)
             {

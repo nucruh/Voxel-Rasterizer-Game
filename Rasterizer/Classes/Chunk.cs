@@ -1,6 +1,21 @@
 ﻿using System.Diagnostics;
 using OpenTK.Mathematics;
 
+
+public struct BlockPlacement
+{
+    public Vector3 Position;
+    public ushort BlockId;
+    public bool OnlyIfAir;
+
+    public BlockPlacement(Vector3 position, ushort blockId, bool onlyIfAir = false)
+    {
+        Position = position;
+        BlockId = blockId;
+        OnlyIfAir = onlyIfAir;
+    }
+}
+
 public class Chunk
 {
     public Vector3 Position;
@@ -13,6 +28,7 @@ public class Chunk
 
     private List<float> vertices = new List<float>();
     private List<float> foliageVertices = new List<float>();
+    public List<BlockPlacement> overflowBlocks = new List<BlockPlacement>();
 
     // reused between builds so we don't allocate per slice / per chunk
     [ThreadStatic] private static ushort[]? _mask;
@@ -64,6 +80,70 @@ public class Chunk
         return ((h ^ (h >> 16)) & 0xFFFF) / 65535f;
     }
 
+    private void SetBlock(int x, int y, int z, ushort id, bool onlyIfAir = false)
+    {
+        if (x >= 0 && x < Size &&
+            y >= 0 && y < Size &&
+            z >= 0 && z < Size)
+        {
+            int index = GetLocalIdInChunk(x, y, z);
+
+            if (!onlyIfAir || blockData[index] == AIR)
+                blockData[index] = id;
+        }
+        else
+        {
+            overflowBlocks.Add(new BlockPlacement(
+                new Vector3(Position.X + x, Position.Y + y, Position.Z + z),
+                id, onlyIfAir));
+        }
+    }
+
+    public void ApplyOverflow(Chunk[,,] chunks)
+    {
+        int cx = (int)(Position.X / Size);
+        int cy = (int)(Position.Y / Size);
+        int cz = (int)(Position.Z / Size);
+
+        for (int x = -1; x <= 1; x++)
+            for (int y = -1; y <= 1; y++)
+                for (int z = -1; z <= 1; z++)
+                {
+                    if (x == 0 && y == 0 && z == 0)
+                        continue;
+
+                    int nx = cx + x;
+                    int ny = cy + y;
+                    int nz = cz + z;
+
+                    if (nx < 0 || nx >= chunks.GetLength(0) ||
+                        ny < 0 || ny >= chunks.GetLength(1) ||
+                        nz < 0 || nz >= chunks.GetLength(2))
+                        continue;
+
+                    Chunk neighbor = chunks[nx, ny, nz];
+
+                    foreach (var block in neighbor.overflowBlocks)
+                    {
+                        int localX = (int)(block.Position.X - Position.X);
+                        int localY = (int)(block.Position.Y - Position.Y);
+                        int localZ = (int)(block.Position.Z - Position.Z);
+
+                        if (localX < 0 || localX >= Size ||
+                            localY < 0 || localY >= Size ||
+                            localZ < 0 || localZ >= Size)
+                            continue;
+
+                        int index = GetLocalIdInChunk(localX, localY, localZ);
+
+                        if (block.OnlyIfAir && blockData[index] != AIR)
+                            continue;
+
+                        blockData[index] = block.BlockId;
+                    }
+                }
+    }
+
     public void Generate()
     {
         int py = (int)Position.Y;
@@ -95,50 +175,128 @@ public class Chunk
                         id = rocky ? STONE : DIRT;
                     else if (wy == height)
                         id = topBlock;
-                    blockData[GetLocalIdInChunk(x, y, z)] = id;
+                    SetBlock(x, y, z, id, true);
                 }
 
                 int grassY = height - py;
-                if (grassY < 0 || grassY + 1 >= Size) continue;
+                if (grassY < 0) continue;
 
                 float hash = Hash01((int)wx, (int)wz);
-                // grass cards only on grass, thinned out randomly
+
                 if (!rocky && hash < 0.85f)
-                    blockData[GetLocalIdInChunk(x, grassY + 1, z)] = 64511;
-                else if (!rocky && hash < 0.9f)
+                    SetBlock(x, grassY + 1, z, GRASS_CARD, true);
+                else if (!rocky && hash < 0.853f && grassY + 1 < Size)
                     treeSpots[x, grassY + 1, z] = 1;
             }
 
 
+        // tree gen
         for (int _x = 0; _x < Size; _x++)
             for (int _y = 0; _y < Size; _y++)
                 for (int _z = 0; _z < Size; _z++)
                 {
-                    if (treeSpots[_x, _y, _z] == 1)
-                    {
-                        int treeHeight = Random.Shared.Next(4, 7);
-                        for (int y = 0; y < treeHeight; y++)
-                        {
-                            if (_y + y >= Size) break;
-                            blockData[GetLocalIdInChunk(_x, _y + y, _z)] = 4; // oak log
-                        }
-                        int leafStartY = _y + treeHeight - 2;
-                        int leafEndY = Math.Min(_y + treeHeight + 1, Size - 1);
-                        for (int y = leafStartY; y <= leafEndY; y++)
-                        {
-                            int radius = (y == leafStartY || y == leafEndY) ? 1 : 2;
-                            for (int dx = -radius; dx <= radius; dx++)
-                                for (int dz = -radius; dz <= radius; dz++)
-                                {
-                                    if (Math.Abs(dx) + Math.Abs(dz) > radius) continue;
-                                    int lx = _x + dx;
-                                    int lz = _z + dz;
-                                    if (lx < 0 || lx >= Size || lz < 0 || lz >= Size) continue;
-                                    if (blockData[GetLocalIdInChunk(lx, y, lz)] == AIR)
-                                        blockData[GetLocalIdInChunk(lx, y, lz)] = 64512; // oak leaf
-                                }
-                        }
-                    }
+                    if (treeSpots[_x, _y, _z] != 1)
+                        continue;
+                       
+                    GenerateOak(_x, _y, _z);
+
+                }
+    }
+
+    const int LogId = 4;
+    const int LeafId = 64512;
+
+    static int HashPosition(int seed, int x, int y, int z)
+    {
+        unchecked
+        {
+            uint h = (uint)seed;
+            h ^= (uint)x * 0x9E3779B1u; h = (h << 13) | (h >> 19); h *= 0x85EBCA6Bu;
+            h ^= (uint)y * 0xC2B2AE35u; h = (h << 13) | (h >> 19); h *= 0x27D4EB2Fu;
+            h ^= (uint)z * 0x165667B1u; h = (h << 13) | (h >> 19); h *= 0x9E3779B1u;
+            h ^= h >> 16;
+            return (int)h;
+        }
+    }
+
+    void GenerateOak(int x, int y, int z)
+    {
+        var rng = new Random(HashPosition(Game._worldSeed, x, y, z));
+
+        int trunkHeight = rng.Next(7, 11);
+
+        // Trunk
+        for (int i = 0; i < trunkHeight; i++)
+            SetBlock(x, y + i, z, LogId);
+
+        // Root flare at the base
+        foreach (var (dx, dz) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            if (rng.NextDouble() < 0.6)
+            {
+                SetBlock(x + dx, y, z + dz, LogId);
+                if (rng.NextDouble() < 0.3)
+                    SetBlock(x + dx, y + 1, z + dz, LogId);
+            }
+
+        // Branches: start in the upper half of the trunk, spread outward and rise
+        int branchCount = rng.Next(4, 7);
+        double angleOffset = rng.NextDouble() * Math.PI * 2;
+
+        for (int b = 0; b < branchCount; b++)
+        {
+            // Evenly spread angles with some jitter, so branches don't clump
+            double angle = angleOffset + b * (Math.PI * 2 / branchCount)
+                           + (rng.NextDouble() - 0.5) * 0.6;
+
+            int startY = y + (int)(trunkHeight * (0.5 + rng.NextDouble() * 0.4));
+            int length = rng.Next(3, 6);
+            double rise = 0.4 + rng.NextDouble() * 0.4; // vertical blocks per horizontal block
+
+            double dirX = Math.Cos(angle);
+            double dirZ = Math.Sin(angle);
+
+            int bx = x, by = startY, bz = z;
+            double fy = startY;
+
+            for (int s = 1; s <= length; s++)
+            {
+                bx = x + (int)Math.Round(dirX * s);
+                bz = z + (int)Math.Round(dirZ * s);
+                fy += rise;
+                by = (int)Math.Round(fy);
+
+                SetBlock(bx, by, bz, LogId);
+
+                // Fill diagonal gaps so the branch stays connected
+                SetBlock(bx, by - 1, bz, LogId);
+            }
+
+            // Leaf cluster at the branch tip
+            LeafBlob(bx, by + 1, bz, rng.Next(3, 6), rng);
+        }
+
+        // Main crown on top of the trunk
+        LeafBlob(x, y + trunkHeight, z, 3, rng);
+    }
+
+    void LeafBlob(int cx, int cy, int cz, int radius, Random rng)
+    {
+        double ry = radius * 0.7; // flattened vertically, like a real oak crown
+
+        for (int dx = -radius; dx <= radius; dx++)
+            for (int dy = -(int)Math.Ceiling(ry); dy <= (int)Math.Ceiling(ry); dy++)
+                for (int dz = -radius; dz <= radius; dz++)
+                {
+                    double d = (dx * dx) / (double)(radius * radius)
+                             + (dy * dy) / (ry * ry)
+                             + (dz * dz) / (double)(radius * radius);
+
+                    if (d > 1.0) continue;
+
+                    // Ragged edges: randomly drop outer voxels
+                    if (d > 0.65 && rng.NextDouble() < 0.4) continue;
+
+                    SetBlock(cx + dx, cy + dy, cz + dz, LeafId, true);
                 }
     }
 
@@ -154,6 +312,14 @@ public class Chunk
         float randomOffset = (float)(Random.Shared.NextDouble() * 0.3f - 0.15f);
         Vector3 ranOffsetV = new Vector3(randomOffset, 0, randomOffset);
 
+        int hash = HashPosition(Game._worldSeed, x, y, z);
+
+        var rng = new Random(hash);
+        float value = rng.NextSingle();
+
+        ushort target = value < 0.5f ? (ushort)64511 : (ushort)64513; // grass_card or short_grass_card
+        target = value < 0.1f ? (ushort)64514 : target; // dandelion
+
         for (int j = 0; j < 4; j++)
         {
             float angle = j * MathHelper.PiOver4;
@@ -165,7 +331,7 @@ public class Chunk
 
             Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
 
-            MeshUtility.AddQuad(foliageVertices, look, offset, "grass_card", true, true, true, 0.0f, 1.0f);
+            MeshUtility.AddQuad(foliageVertices, look, offset, target, true, true, true, 0.0f, 1.0f);
         }
     }
 
@@ -174,7 +340,7 @@ public class Chunk
         Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
         foliageCount++;
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 3; i++)
         {
             float pitch = Random.Shared.NextSingle() * MathF.PI;
             float yaw = Random.Shared.NextSingle() * MathF.Tau;
@@ -187,7 +353,7 @@ public class Chunk
 
             Vector3 look = Vector3.Transform(Vector3.UnitZ, rotation);
 
-            float scale = 0.8f + Random.Shared.NextSingle() * 0.4f;
+            float scale = 0.9f + Random.Shared.NextSingle() * 0.4f;
 
             MeshUtility.AddQuad(
                 foliageVertices,
