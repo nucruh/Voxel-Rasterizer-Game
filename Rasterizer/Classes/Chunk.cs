@@ -210,7 +210,7 @@ public class Chunk
                      SetBlock(x, grassY + 1, z, 64515, true); // fern
                 else if (!rocky && hash < 0.9f && grassY + 1 < Size)
                     SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
-                else if (!rocky && hash < 0.95f && grassY + 1 < Size)
+                else if (!rocky && hash < 0.925f && grassY + 1 < Size)
                     SetBlock(x, grassY + 1, z, 64517, true); // porcini shroom
             }
 
@@ -431,6 +431,30 @@ public class Chunk
         MeshUtility.AddModel(vertices, "andesite_pebble_1", _BP, 90f);
     }
 
+    private void PorciniGen(int x, int y, int z)
+    {
+        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
+
+        Random rng = new(HashCode.Combine((int)_BP.X, (int)_BP.Y, (int)_BP.Z));
+
+        const float PivotHeight = 0.5f; // "origin" Y from the model json (pivot height above the base)
+
+        int count = rng.Next(2, 5);
+
+        for (int i = 0; i < count; i++)
+        {
+            float scale = 0.6f + rng.NextSingle() * 0.6f; // 0.6x .. 1.2x
+            float yaw = rng.NextSingle() * 360f;
+
+            Vector3 offset = new(
+                (rng.NextSingle() - 0.5f) * 0.8f,
+                PivotHeight * (scale - 1f), // keeps the base at the same height for any scale
+                (rng.NextSingle() - 0.5f) * 0.8f);
+
+            MeshUtility.AddModel(vertices, "mushroom_porcini_1", _BP + offset, yaw, scale);
+        }
+    }
+
     public void CreateMesh(Chunk[,,] chunks)
     {
         Stopwatch sw = Stopwatch.StartNew();
@@ -477,7 +501,7 @@ public class Chunk
                     else if (block == 64516) // pebble
                         PebbleGen(x, y, z);
                     else if (block == 64517) // porcini shroom
-                        MeshUtility.AddModel(vertices, "align_object", new Vector3(Position.X + x, Position.Y + y, Position.Z + z), 90f);
+                        PorciniGen(x, y, z);
 
                 }
 

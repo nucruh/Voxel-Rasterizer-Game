@@ -4,10 +4,10 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Diagnostics;
+using System.Drawing;
+using System.Runtime.InteropServices;
 using static BitmapFontRenderer;
 using static MeshUtility;
-using System.Runtime.InteropServices;
-
 using GameWindow = OpenTK.Windowing.Desktop.GameWindow;
 
 using var game = new Game();
@@ -56,13 +56,15 @@ public class Game : GameWindow
     private float ramUsage = 0.0f;
     private float vramUsage = 0.0f;
 
+    private Frame _menu = null!;
+
 
     public Game() : base(
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(3440, 1440),
-            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
+            ClientSize = new Vector2i(1920, 1080),
+            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
@@ -133,7 +135,7 @@ public class Game : GameWindow
         vramUsage = _vram.GetDedicatedBytes(0);
 
         _camera = new Camera(new Vector3(3, 2, 4), Vector3.Zero);
-        //CursorState = CursorState.Grabbed;
+        CursorState = CursorState.Grabbed;
 
         GL.Enable(EnableCap.DepthTest);
 
@@ -225,6 +227,32 @@ public class Game : GameWindow
             new Vector3(worldW, WorldHeight, worldW),
             ShadowMapSize,
             out _texelWorld);
+
+
+        int icon = ImageRenderer.Load("Images/Thumbnail.jpg");   // load once, not every frame
+        _menu = new Frame
+        {
+            Children =
+            {
+                new Image(icon)
+                {
+                    Size = new UDim2(0, 64, 0, 64),
+                    Position = new UDim2(0, 10, 0, 10)
+                },
+
+                new Stack
+                {
+                    Gap = 6,
+                    Position = new UDim2(0.5f, 0, 0.5f, 0),
+                    AnchorPoint = (0.5f, 0.5f),
+                    Children =
+                    {
+                        new Label("MAIN MENU"),
+                        new Button("QUIT",  () => Close())
+                    }
+                }
+            }
+        };
 
         RenderShadowMap();
     }
@@ -325,8 +353,7 @@ public class Game : GameWindow
         if (!IsFocused)
             return;
 
-        var m = MouseState;
-        Ui.SetMouse(m.X, m.Y, m.IsButtonDown(MouseButton.Left));
+
 
         float dt = (float)e.Time;
         float speed = _camera.Speed * (KeyboardState.IsKeyDown(Keys.LeftControl) ? 3f : 1f);
@@ -519,31 +546,12 @@ public class Game : GameWindow
 
         RenderHud(drawCalls);
 
-        int icon = ImageRenderer.Load("Images/Thumbnail.jpg");   // load once, not every frame
+        var m = MouseState;
+        Ui.SetMouse(m.X, m.Y, m.IsButtonDown(MouseButton.Left));
 
-        Ui.RenderScreen(new Frame
-        {
-            Children =
-    {
-        new Image(icon)
-        {
-            Size = new UDim2(0, 64, 0, 64),
-            Position = new UDim2(0, 10, 0, 10)
-        },
 
-        new Stack
-        {
-            Gap = 6,
-            Position = new UDim2(0.5f, 0, 0.5f, 0),
-            AnchorPoint = (0.5f, 0.5f),
-            Children =
-            {
-                new Label("MAIN MENU"),
-                new Button("QUIT",  () => Close())
-            }
-        }
-    }
-        });
+
+        //Ui.RenderScreen(_menu);
 
         UiRenderQueue.Flush();
 
@@ -553,18 +561,19 @@ public class Game : GameWindow
     private void RenderHud(uint drawCalls)
     {
         const float margin = 12f;
-        const float panelWidth = 400f;
-        const float panelHeight = 300f;
+        const float panelWidth = 700f;
+        const float panelHeight = 275f;
 
         RenderRect(margin, margin, panelWidth, panelHeight,
                    new TextColor(15, 20, 28), zIndex: 0, alpha: 0.88f);
 
-        string data = $"RAM: {ramUsage} MB\n" +
-            $"VRAM: {vramUsage / (1024f * 1024f):f0} MB\n" +
-            $"FPS : {Math.Round(lastFps, 0)}\n" +
-            $"Triangles: {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
+        string data = $"RAM       : {ramUsage} MB\n" +
+            $"VRAM      : {vramUsage / (1024f * 1024f):f0} MB\n" +
+            $"FPS       : {Math.Round(lastFps, 0)}\n" +
+            $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
+            $"Gen time  : {totalGenerationTime:f0} ms\n" +
             $"Draw calls: {drawCalls}\n" +
-            $"Screen: {ClientSize.X} x {ClientSize.Y}";
+            $"Screen    : {ClientSize.X} x {ClientSize.Y}";
 
         RenderText(data,
             (margin + 10f) / ClientSize.X,

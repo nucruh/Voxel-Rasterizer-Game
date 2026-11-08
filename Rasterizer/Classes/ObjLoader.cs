@@ -36,7 +36,7 @@ public static class ObjLoader
                     normals.Add(nn.LengthSquared > 1e-12f ? Vector3.Normalize(nn) : Vector3.UnitY);
                     break;
                 case "vt":
-                    uvs.Add(new Vector2(F(t[1]), t.Length > 2 ? 1f - F(t[2]) : 1f));
+                    uvs.Add(new Vector2(F(t[1]), t.Length > 2 ? F(t[2]) : 0f));
                     break;
                 case "f":
                     AddFace(result, t, texture, positions, normals, uvs, mirrored: s.X * s.Y * s.Z < 0);
@@ -55,7 +55,7 @@ public static class ObjLoader
 
         var p = new Vector3[count];
         var n = new Vector3?[count];
-        var uv = new Vector2[count];   // local 0..1 UVs
+        var uv = new Vector2[count];   // raw UVs, NOT clamped
 
         for (int i = 0; i < count; i++)
         {
@@ -64,12 +64,7 @@ public static class ObjLoader
             p[i] = positions[Resolve(parts[0], positions.Count)];
 
             if (parts.Length > 1 && parts[1].Length > 0)
-            {
-                Vector2 raw = uvs[Resolve(parts[1], uvs.Count)];
-                // the atlas tile is clamped, so keep UVs inside the tile
-                uv[i] = new Vector2(MathHelper.Clamp(raw.X, 0f, 1f),
-                                    MathHelper.Clamp(raw.Y, 0f, 1f));
-            }
+                uv[i] = uvs[Resolve(parts[1], uvs.Count)];
 
             if (parts.Length > 2 && parts[2].Length > 0)
                 n[i] = normals[Resolve(parts[2], normals.Count)];
@@ -85,12 +80,21 @@ public static class ObjLoader
                 ? Vector3.Normalize(faceNormal)
                 : Vector3.UnitY;
 
-            // tangent from the local UVs: atlas remapping doesn't change the direction
             Vector4 tangent = ComputeTangent(p[a], p[b], p[c], uv[a], uv[b], uv[c], faceNormal);
+
+            // shift the whole triangle into the 0..1 tile (keeps UV differences intact)
+            const float eps = 1e-8f;
+            float minU = MathF.Min(uv[a].X, MathF.Min(uv[b].X, uv[c].X));
+            float minV = MathF.Min(uv[a].Y, MathF.Min(uv[b].Y, uv[c].Y));
+            Vector2 shift = new(MathF.Floor(minU + eps), MathF.Floor(minV + eps));
 
             foreach (int k in idx)
             {
-                Vector2 atlasUv = Game._atlas.Map(texture, uv[k]);
+                Vector2 local = uv[k] - shift;
+                local = new Vector2(MathHelper.Clamp(local.X, 0f, 1f),
+                                    MathHelper.Clamp(local.Y, 0f, 1f));
+
+                Vector2 atlasUv = Game._atlas.Map(texture, local);
                 MeshUtility.AddVertex(v, p[k], n[k] ?? faceNormal, atlasUv, tangent, 0.0f);
             }
         }
