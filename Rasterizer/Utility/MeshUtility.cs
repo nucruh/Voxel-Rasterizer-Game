@@ -23,15 +23,12 @@ public static class MeshUtility
     public static void AddVertex(List<float> v, Vector3 p, Vector3 normal, Vector2 uv,
                                  Vector4 tangent, float weight, Vector4 tileRect = default)
     {
-        v.AddRange(new[]
-        {
-            p.X, p.Y, p.Z,
-            normal.X, normal.Y, normal.Z,
-            uv.X, uv.Y,
-            tangent.X, tangent.Y, tangent.Z, tangent.W,
-            weight,
-            tileRect.X, tileRect.Y, tileRect.Z, tileRect.W
-        });
+        v.Add(p.X); v.Add(p.Y); v.Add(p.Z);
+        v.Add(normal.X); v.Add(normal.Y); v.Add(normal.Z);
+        v.Add(uv.X); v.Add(uv.Y);
+        v.Add(tangent.X); v.Add(tangent.Y); v.Add(tangent.Z); v.Add(tangent.W);
+        v.Add(weight);
+        v.Add(tileRect.X); v.Add(tileRect.Y); v.Add(tileRect.Z); v.Add(tileRect.W);
     }
 
     private static readonly Vector2[] QuadUVs =
