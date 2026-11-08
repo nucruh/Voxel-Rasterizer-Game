@@ -61,8 +61,8 @@ public class Game : GameWindow
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(1920, 1080),
-            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
+            ClientSize = new Vector2i(3440, 1440),
+            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
@@ -74,7 +74,7 @@ public class Game : GameWindow
 
     public sealed class VramMonitor
     {
-        private readonly List<PerformanceCounter> _dedicated = new();
+        private readonly List<PerformanceCounter> _dedicated = [];
         private readonly string _pidPrefix = $"pid_{Environment.ProcessId}_";
         private double _nextPoll;
         private long _cachedBytes;
@@ -128,11 +128,12 @@ public class Game : GameWindow
         SystemInfo.glslVersion = GL.GetString(StringName.ShadingLanguageVersion);
 
         InitTextRendering(ClientSize.X, ClientSize.Y);
+        ImageRenderer.Init(ClientSize.X, ClientSize.Y);
         ramUsage = GetRamUsage();
         vramUsage = _vram.GetDedicatedBytes(0);
 
         _camera = new Camera(new Vector3(3, 2, 4), Vector3.Zero);
-        CursorState = CursorState.Grabbed;
+        //CursorState = CursorState.Grabbed;
 
         GL.Enable(EnableCap.DepthTest);
 
@@ -311,6 +312,7 @@ public class Game : GameWindow
     {
         base.OnResize(e);
         GL.Viewport(0, 0, e.Width, e.Height);
+        ResizeText(e.Width, e.Height);
     }
 
     protected override void OnUpdateFrame(FrameEventArgs e)
@@ -322,6 +324,9 @@ public class Game : GameWindow
 
         if (!IsFocused)
             return;
+
+        var m = MouseState;
+        Ui.SetMouse(m.X, m.Y, m.IsButtonDown(MouseButton.Left));
 
         float dt = (float)e.Time;
         float speed = _camera.Speed * (KeyboardState.IsKeyDown(Keys.LeftControl) ? 3f : 1f);
@@ -512,31 +517,63 @@ public class Game : GameWindow
 
         GL.Enable(EnableCap.CullFace);
 
-        float marginScaleX = (float)(GlyphPixelW + TextScale) / ClientSize.X;
-        float marginScaleY = (float)(GlyphPixelH + TextScale * 2) / ClientSize.Y;
+        RenderHud(drawCalls);
 
-        string data = $"RAM: {ramUsage} MB\n" +
-            $"VRAM: {vramUsage / (1024f * 1024f):f0} MB\n" +
-            $"FPS : {Math.Round(lastFps, 0)}\n" +
-            $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
-            $"Draw calls: {drawCalls}\n" +
-            $"Generation time: {totalGenerationTime:f1}ms\n" +
-            $"Screen : {ClientSize.X} x {ClientSize.Y}";
+        int icon = ImageRenderer.Load("Images/Thumbnail.jpg");   // load once, not every frame
 
-        // 2D overlay state
-        GL.Disable(EnableCap.DepthTest);
-        GL.Disable(EnableCap.CullFace);
-        GL.Enable(EnableCap.Blend);
-        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        Ui.RenderScreen(new Frame
+        {
+            Children =
+    {
+        new Image(icon)
+        {
+            Size = new UDim2(0, 64, 0, 64),
+            Position = new UDim2(0, 10, 0, 10)
+        },
 
-        RenderText(data, marginScaleX, marginScaleY, white);
-
-        GL.Disable(EnableCap.Blend);
-        GL.Enable(EnableCap.DepthTest);
+        new Stack
+        {
+            Gap = 6,
+            Position = new UDim2(0.5f, 0, 0.5f, 0),
+            AnchorPoint = (0.5f, 0.5f),
+            Children =
+            {
+                new Label("MAIN MENU"),
+                new Button("QUIT",  () => Close())
+            }
+        }
+    }
+        });
 
         UiRenderQueue.Flush();
 
         SwapBuffers();
+    }
+
+    private void RenderHud(uint drawCalls)
+    {
+        const float margin = 12f;
+        const float panelWidth = 400f;
+        const float panelHeight = 300f;
+
+        RenderRect(margin, margin, panelWidth, panelHeight,
+                   new TextColor(15, 20, 28), zIndex: 0, alpha: 0.88f);
+
+        string data = $"RAM: {ramUsage} MB\n" +
+            $"VRAM: {vramUsage / (1024f * 1024f):f0} MB\n" +
+            $"FPS : {Math.Round(lastFps, 0)}\n" +
+            $"Triangles: {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
+            $"Draw calls: {drawCalls}\n" +
+            $"Screen: {ClientSize.X} x {ClientSize.Y}";
+
+        RenderText(data,
+            (margin + 10f) / ClientSize.X,
+            (margin + 10f) / ClientSize.Y,
+            white,
+            zIndex: 1);
+
+        RenderText("+", 0.5f, 0.5f,
+                   new TextColor(255, 255, 255), zIndex: 2);
     }
 
     protected override void OnUnload()
@@ -551,6 +588,7 @@ public class Game : GameWindow
         GL.DeleteVertexArray(_skyVao);
         _skyShader.Dispose();
         _foliageShader.Dispose();
+        DisposeText();
         base.OnUnload();
     }
 }

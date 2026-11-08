@@ -28,6 +28,9 @@ public static class BitmapFontRenderer
     private const int ATLAS_ROWS = 5;
     private const int ATLAS_PX = 50; // atlas is 50×50
 
+    public static int WindowWidth => _windowWidth;
+    public static int WindowHeight => _windowHeight;
+
     public struct TextColor
     {
         public int r, g, b;
@@ -120,6 +123,7 @@ public static class BitmapFontRenderer
     // ── GL state ───────────────────────────────────────────────────────────────
     private static int _atlasTexture;
     private static int _program, _vao, _vbo;
+    private static int _colorProgram, _colorVao, _colorVbo;
 
     // ── Window ─────────────────────────────────────────────────────────────────
     private static int _windowWidth;
@@ -147,6 +151,7 @@ public static class BitmapFontRenderer
         LoadAtlasTexture("Images/font.png");
         BuildShaderProgram();
         BuildMesh();
+        BuildColorProgram();
     }
 
     /// <summary>Change the glyph scale (must be a positive integer).</summary>
@@ -170,6 +175,9 @@ public static class BitmapFontRenderer
         GL.UseProgram(_program);
         GL.Uniform2(GL.GetUniformLocation(_program, "uScreenSize"),
                     (float)_windowWidth, (float)_windowHeight);
+        GL.UseProgram(_colorProgram);
+        GL.Uniform2(GL.GetUniformLocation(_colorProgram, "uScreenSize"),
+                    (float)_windowWidth, (float)_windowHeight);
         GL.UseProgram(0);
     }
 
@@ -191,9 +199,23 @@ public static class BitmapFontRenderer
         foreach (var line in lines)
             maxCols = Math.Max(maxCols, line.Length);
 
-        float w = maxCols * GlyphPixelW;
-        float h = lines.Length * GlyphPixelH;
+        float w = maxCols * (GlyphPixelW + TextScale) - TextScale;
+        float h = lines.Length * (GlyphPixelH + TextScale * 2) - TextScale * 2;
         return (w, h);
+    }
+
+    /// <summary>Queues a solid screen-space rectangle for rendering.</summary>
+    public static void RenderRect(float x, float y, float width, float height,
+                                  TextColor color, int zIndex = 0, float alpha = 1f)
+    {
+        if (width <= 0 || height <= 0) return;
+
+        UiRenderQueue.Submit(zIndex, () => DrawRectNow(
+            x, y, width, height,
+            Math.Clamp(color.r / 255f, 0f, 1f),
+            Math.Clamp(color.g / 255f, 0f, 1f),
+            Math.Clamp(color.b / 255f, 0f, 1f),
+            Math.Clamp(alpha, 0f, 1f)));
     }
 
     /// <summary>
@@ -214,6 +236,14 @@ public static class BitmapFontRenderer
         float originY = yScale * _windowHeight;
 
         UiRenderQueue.Submit(zIndex, () => DrawTextNow(text, originX, originY, color, scale));
+    }
+
+    public static void RenderTextPx(string text, float x, float y,
+                                TextColor color, int zIndex = 0)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        int scale = TextScale;
+        UiRenderQueue.Submit(zIndex, () => DrawTextNow(text, x, y, color, scale));
     }
 
     private static void DrawTextNow(string text, float originX, float originY,
@@ -306,6 +336,48 @@ public static class BitmapFontRenderer
         GL.BindVertexArray(0);
     }
 
+    private static void BuildColorProgram()
+    {
+        _colorProgram = CreateProgram("shaders/ui.vert", "shaders/ui.frag");
+
+        GL.UseProgram(_colorProgram);
+        GL.Uniform2(GL.GetUniformLocation(_colorProgram, "uScreenSize"),
+                    (float)_windowWidth, (float)_windowHeight);
+        GL.UseProgram(0);
+
+        _colorVao = GL.GenVertexArray();
+        _colorVbo = GL.GenBuffer();
+        GL.BindVertexArray(_colorVao);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _colorVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, sizeof(float) * 12,
+                      IntPtr.Zero, BufferUsageHint.StreamDraw);
+        GL.EnableVertexAttribArray(0);
+        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false,
+                               sizeof(float) * 2, 0);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        GL.BindVertexArray(0);
+    }
+
+    private static void DrawRectNow(float x, float y, float width, float height,
+                                    float r, float g, float b, float a)
+    {
+        float[] vertices =
+        {
+            x, y, x + width, y, x + width, y + height,
+            x, y, x + width, y + height, x, y + height
+        };
+
+        GL.UseProgram(_colorProgram);
+        GL.BindVertexArray(_colorVao);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _colorVbo);
+        GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero,
+                         sizeof(float) * vertices.Length, vertices);
+        GL.Uniform4(GL.GetUniformLocation(_colorProgram, "uColor"), r, g, b, a);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+        GL.BindVertexArray(0);
+        GL.UseProgram(0);
+    }
+
     /// <summary>
     /// Builds one big vertex buffer covering every visible glyph across all
     /// lines, then submits a single draw call.  This keeps the per-frame work
@@ -394,7 +466,7 @@ public static class BitmapFontRenderer
 
     // ── Shader helpers ─────────────────────────────────────────────────────────
 
-    private static int CreateProgram(string vertPath, string fragPath)
+    internal static int CreateProgram(string vertPath, string fragPath)
     {
         int vert = CompileShader(vertPath, ShaderType.VertexShader);
         int frag = CompileShader(fragPath, ShaderType.FragmentShader);
@@ -435,10 +507,8 @@ public static class BitmapFontRenderer
         if (_vbo != 0) GL.DeleteBuffer(_vbo);
         if (_vao != 0) GL.DeleteVertexArray(_vao);
         if (_program != 0) GL.DeleteProgram(_program);
+        if (_colorVbo != 0) GL.DeleteBuffer(_colorVbo);
+        if (_colorVao != 0) GL.DeleteVertexArray(_colorVao);
+        if (_colorProgram != 0) GL.DeleteProgram(_colorProgram);
     }
-}
-
-public static class ImageRenderer
-{
-
 }

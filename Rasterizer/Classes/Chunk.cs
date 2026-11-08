@@ -210,6 +210,8 @@ public class Chunk
                      SetBlock(x, grassY + 1, z, 64515, true); // fern
                 else if (!rocky && hash < 0.9f && grassY + 1 < Size)
                     SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
+                else if (!rocky && hash < 0.95f && grassY + 1 < Size)
+                    SetBlock(x, grassY + 1, z, 64517, true); // porcini shroom
             }
 
 
@@ -474,6 +476,8 @@ public class Chunk
                         FernGen(x, y, z);
                     else if (block == 64516) // pebble
                         PebbleGen(x, y, z);
+                    else if (block == 64517) // porcini shroom
+                        MeshUtility.AddModel(vertices, "align_object", new Vector3(Position.X + x, Position.Y + y, Position.Z + z), 90f);
 
                 }
 

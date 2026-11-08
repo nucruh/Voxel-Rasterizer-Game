@@ -38,6 +38,40 @@ vec3 ACESFilm(vec3 color, float exposure)
     return clamp((color * (a * color + b)) / (color * (c * color + d) + e), 0.0, 1.0);
 }
 
+vec3 ColorCorrection(
+    vec3 color,
+    float exposure,
+    float contrast,
+    float saturation,
+    float vibrance,
+    float gamma
+)
+{
+    // Exposure
+    color *= exp2(exposure);
+
+    // Contrast
+    color = (color - 0.5) * contrast + 0.5;
+
+    // Saturation
+    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(vec3(luminance), color, saturation);
+
+    // Vibrance
+    float maxColor = max(max(color.r, color.g), color.b);
+    float minColor = min(min(color.r, color.g), color.b);
+    float chroma = maxColor - minColor;
+
+    float vibranceFactor = 1.0 - chroma;
+    color = mix(vec3(luminance), color,
+                1.0 + vibrance * vibranceFactor);
+
+    // Gamma
+    color = pow(max(color, 0.0), vec3(1.0 / gamma));
+
+    return clamp(color, 0.0, 1.0);
+}
+
 float ShadowFactor(vec3 worldPos, vec3 N)
 {
     float cosT = clamp(dot(N, -lightDir), 0.0, 1.0);
@@ -118,8 +152,10 @@ void main()
     vec3 lighting = ambient * ambient_strength + direct_strength * ndl * shadow;
 
     color.rgb *= lighting;
-    color.rgb = ACESFilm(color.rgb, 0.0113);
+    //color.rgb = ACESFilm(color.rgb, 0.0113);
+    color.rgb = ColorCorrection(color.rgb, 0.15, 0.95, 0.9, 0.2, 1.0);
     color.rgb = ApplyFog(color.rgb, depth);
+    //color.rgb = vec3(direct_strength);
 
     FragColor = color;
 }

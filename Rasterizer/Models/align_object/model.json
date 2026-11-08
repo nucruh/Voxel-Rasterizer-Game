@@ -1,0 +1,12 @@
+{
+    "name": "align_object",
+    "blockId": 64518,
+    "isTransparent": false,
+    "scale": [1.0, 1.0, 1.0],
+    "origin": [0.0, 0.5, 0.0],
+    "collision": false,
+    "textures": {
+        "diffuse": "test_diffuse",
+        "normal": "normal"
+    }
+}

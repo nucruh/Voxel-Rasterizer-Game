@@ -41,7 +41,7 @@
     public static readonly string[] Names = Directory
         .GetFiles(DiffuseFolder, "*.png")
         .Select(Path.GetFileNameWithoutExtension)
-        .Where(x => !x.Contains("normal", StringComparison.OrdinalIgnoreCase))
+        .Where(x => !x!.Contains("normal", StringComparison.OrdinalIgnoreCase))
         .OrderBy(x => x)
         .ToArray()!;
 

@@ -5,6 +5,7 @@ public static class ObjLoader
 {
 
     private const float BaseScale = 0.5f;
+
     public static float[] Load(string path, string texture, Vector3 scale, Vector3 origin)
     {
         if (!TextureNames.Names.Contains(texture))
@@ -35,7 +36,7 @@ public static class ObjLoader
                     normals.Add(nn.LengthSquared > 1e-12f ? Vector3.Normalize(nn) : Vector3.UnitY);
                     break;
                 case "vt":
-                    uvs.Add(new Vector2(F(t[1]), t.Length > 2 ? F(t[2]) : 0f));
+                    uvs.Add(new Vector2(F(t[1]), t.Length > 2 ? 1f - F(t[2]) : 1f));
                     break;
                 case "f":
                     AddFace(result, t, texture, positions, normals, uvs, mirrored: s.X * s.Y * s.Z < 0);

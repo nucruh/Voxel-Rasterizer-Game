@@ -1,0 +1,12 @@
+{
+    "name": "mushroom_porcini_1",
+    "blockId": 64517,
+    "isTransparent": false,
+    "scale": [1.0, 1.0, 1.0],
+    "origin": [0.0, 0.5, 0.0],
+    "collision": false,
+    "textures": {
+        "diffuse": "mushroom_1",
+        "normal": "normal"
+    }
+}
