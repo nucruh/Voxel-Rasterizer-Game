@@ -536,7 +536,7 @@ public class Chunk
                           int d, int u, int v, int dir, int su, int s, int i, int j,
                           int w, int h, Vector3 look, Vector4 tangentData)
     {
-        string tex = TextureNames.IdToName[type];
+        string tex = TextureNames.Blocks[type].Name;
 
         // atlas cell rect for this block face (assumes Map is linear in uv)
         Vector2 min = atlas.Map(tex, new Vector2(0, 0), look);

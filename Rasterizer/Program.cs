@@ -149,7 +149,8 @@ public class Game : GameWindow
         // this needs to be changed to autogenerrate normals
         _normalAtlas = new TextureAtlas(
             "Textures",
-            new[] { "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal" },
+            TextureNames.Names,
+            TextureNames.NormalNames,
             256);
 
         Stopwatch sw = Stopwatch.StartNew();

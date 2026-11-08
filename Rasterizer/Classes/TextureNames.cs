@@ -1,58 +1,43 @@
-﻿public class TextureNames
+﻿public static class TextureNames
 {
-    // Index in this list = texture id. Loads Textures/<name>.png (32x32).
-    // Index = lineNum - 6
-    public static readonly string[] Names = {
-        "andesite_stone",
-        "dirt_loam",
-        "grass_side_loam",
-        "grass_top_loam",
-        "grass_card",
-        "oak_log",
-        "oak_leaf",
-        "short_grass_card",
-        "dandelion"
-    };
-
-    // actual blocks here
-    public static readonly Dictionary<string, List<string>> NameToNames = new()
+    public static readonly Dictionary<int, BlockDefinition> Blocks = new()
     {
-        ["grass_card"] = new List<string> { "grass_card", "grass_card", "grass_card", "grass_card", "grass_card", "grass_card" },
-        ["short_grass_card"] = new List<string>{"short_grass_card", "short_grass_card", "short_grass_card", "short_grass_card", "short_grass_card", "short_grass_card"},
-        ["dandelion"] = new List<string> { "dandelion", "dandelion", "dandelion", "dandelion", "dandelion", "dandelion" },
+        [1] = new(1, "dirt_loam", "dirt_loam"),
+        [2] = new(2, "grass_loam", new[]
+        {
+            "grass_side_loam",
+            "grass_side_loam",
+            "grass_top_loam",
+            "dirt_loam",
+            "grass_side_loam",
+            "grass_side_loam"
+        }),
+        [3] = new(3, "andesite_stone", "andesite_stone"),
+        [4] = new(4, "oak_log", "oak_log"),
 
-        ["oak_leaf"] = new List<string> { "oak_leaf", "oak_leaf", "oak_leaf", "oak_leaf", "oak_leaf", "oak_leaf" },
-        ["oak_log"] = new List<string> { "oak_log", "oak_log", "oak_log", "oak_log", "oak_log", "oak_log" },
-        ["andesite_stone"] = new List<string> { "andesite_stone", "andesite_stone", "andesite_stone", "andesite_stone", "andesite_stone", "andesite_stone" },
-        ["dirt_loam"] = new List<string> { "dirt_loam", "dirt_loam", "dirt_loam", "dirt_loam", "dirt_loam", "dirt_loam" },
-        ["grass_loam"] = new List<string> {"grass_side_loam", "grass_side_loam", "grass_top_loam", "dirt_loam", "grass_side_loam", "grass_side_loam"}
+        [64511] = new(64511, "grass_card", "grass_card", isTransparent: true, isFoliage: true),
+
+        [64512] = new(64512, "oak_leaf", "oak_leaf", isTransparent: true, isFoliage: true),
+
+        [64513] = new(64513, "short_grass_card", "short_grass_card", isTransparent: true, isFoliage: true),
+
+        [64514] = new(64514, "dandelion", "dandelion", isTransparent: true, isFoliage: true)
     };
 
+    public static readonly string[] Names = Directory
+        .GetFiles("Textures", "*.png")
+        .Select(Path.GetFileNameWithoutExtension)
+        .Where(x => !x.Contains("normal", StringComparison.OrdinalIgnoreCase))
+        .OrderBy(x => x)
+        .ToArray()!;
 
-    // normal maps
-    public static readonly Dictionary<string, List<string>> NameToNames2 = new()
-    {
-        ["grass_card"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
-        ["short_grass_card"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
-        ["dandelion"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
-        ["andesite_stone"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
-        ["dirt_loam"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
-        ["grass_loam"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
-        ["oak_log"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" },
-        ["oak_leaf"] = new List<string> { "normal", "normal", "normal", "normal", "normal", "normal" }
-    };
+    // One source filename per diffuse atlas slot. Do not remove duplicates:
+    // the normal atlas must have the same slot layout as the diffuse atlas.
+    public static readonly string[] NormalNames = Names
+        .Select(x => File.Exists(Path.Combine("Textures", x + "_normal.png"))
+            ? x + "_normal"
+            : "normal")
+        .ToArray();
 
-    public static readonly Dictionary<string, int> NameToId = new()
-    {
-        ["andesite_stone"] = 3,
-        ["dirt_loam"] = 1,
-        ["grass_loam"] = 2,
-        ["oak_log"] = 4,
-        ["grass_card"] = 64511,
-        ["oak_leaf"] = 64512,
-        ["short_grass_card"] = 64513,
-        ["dandelion"] = 64514
-    };
-
-    public static readonly Dictionary<int, string> IdToName = NameToId.ToDictionary(x => x.Value, x => x.Key);
+    public static readonly Dictionary<string, int> NameToId = Blocks.Values.ToDictionary(x => x.Name, x => x.Id);
 }
