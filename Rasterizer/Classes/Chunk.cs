@@ -25,6 +25,8 @@ public class Chunk
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
     private int foliageCount = 0;
+    private bool homogenous = false;
+    private ushort homogenousBlockId = 0;
 
     private List<float> vertices = new List<float>();
     private List<float> foliageVertices = new List<float>();
