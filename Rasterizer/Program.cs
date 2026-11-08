@@ -26,7 +26,7 @@ public class Game : GameWindow
 
     // --- shadow mapping ---
     private const int ShadowMapSize = 4096;
-    private const int WorldChunks = 8;
+    private const int WorldChunks = 4;
     private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
     private const float WorldHeight = 96f;   // replace with your max terrain height
 
@@ -146,9 +146,10 @@ public class Game : GameWindow
 
         _atlas = new TextureAtlas("Textures", TextureNames.Names);
         // The normal atlas uses the dedicated 256x256 normal texture for every slot.
+        // this needs to be changed to autogenerrate normals
         _normalAtlas = new TextureAtlas(
             "Textures",
-            new[] { "normal", "normal", "normal", "normal", "normal" },
+            new[] { "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal", "normal" },
             256);
 
         Stopwatch sw = Stopwatch.StartNew();
@@ -173,6 +174,7 @@ public class Game : GameWindow
         });
 
         // third parallel pass; mesh gen
+        Stopwatch swmesh = Stopwatch.StartNew();
         Parallel.ForEach(_chunks.Cast<Chunk>(), c =>
         {
             c.CreateMesh(_chunks);
@@ -188,9 +190,12 @@ public class Game : GameWindow
             if (c.foliageMesh != null)
                 _sceneObjects.Add(c.foliageMesh);
         }
+        swmesh.Stop();
 
         totalGenerationTime = sw.Elapsed.TotalMilliseconds;
         sw.Stop();
+
+        Console.WriteLine(swmesh.Elapsed.TotalMilliseconds);
 
         // --- shadow setup (world is static, so the map is rendered once) ---
         _shadowShader = new Shader(

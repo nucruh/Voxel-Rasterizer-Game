@@ -1,4 +1,17 @@
 ﻿using OpenTK.Mathematics;
+using System.Runtime.InteropServices;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct Vertex   // 17 floats, same layout the shader already expects
+{
+    public Vector3 Position;
+    public Vector3 Normal;
+    public Vector2 UV;
+    public Vector4 Tangent;
+    public float Weight;
+    public Vector4 TileRect;
+}
+
 
 public static class MeshUtility
 {
@@ -19,6 +32,16 @@ public static class MeshUtility
             tileRect.X, tileRect.Y, tileRect.Z, tileRect.W
         });
     }
+
+    private static readonly Vector2[] QuadUVs =
+    {
+        new(0, 0),
+        new(0, 1),
+        new(1, 1),
+        new(0, 0),
+        new(1, 1),
+        new(1, 0)
+    };
 
     public static void AddQuad(
         List<float> v,
@@ -44,7 +67,6 @@ public static class MeshUtility
         Vector3 up = upDir * 0.5f * size;
 
         Vector3[] pos = { -right - up, -right + up, right + up, -right - up, right + up, right - up };
-        Vector2[] uv = { new(0, 0), new(0, 1), new(1, 1), new(0, 0), new(1, 1), new(1, 0) };
 
         Vector3 center = offset;
 
@@ -63,7 +85,7 @@ public static class MeshUtility
             // pos[i].Y is now in [-0.5*size, 0.5*size], so normalize it for the weight lerp
             float weight = heightPaint ? MathHelper.Lerp(minWeight, maxWeight, pos[i].Y / size + 0.5f) : 0.0f;
 
-            AddVertex(v, pos[i] + center, normal, Game._atlas.Map(texture, uv[i], look), tangentData, weight);
+            AddVertex(v, pos[i] + center, normal, Game._atlas.Map(texture, QuadUVs[i], look), tangentData, weight);
         }
     }
 
