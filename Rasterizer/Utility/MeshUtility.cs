@@ -87,6 +87,43 @@ public static class MeshUtility
         }
     }
 
+    public static void AddQuadAnchored(
+    List<float> v,
+    Vector3 look,
+    Vector3 bottom,
+    string texture,
+    float width = 1.0f,
+    float height = 1.0f,
+    bool heightPaint = false,
+    bool upNormal = false,
+    float minWeight = 0.0f,
+    float maxWeight = 0.0f)
+    {
+        look = Vector3.Normalize(look);
+
+        Vector3 reference = MathF.Abs(look.Y) > 0.999f ? Vector3.UnitZ : Vector3.UnitY;
+
+        Vector3 rightDir = Vector3.Normalize(Vector3.Cross(reference, look));
+        Vector3 upDir = Vector3.Normalize(Vector3.Cross(look, rightDir));
+
+        Vector3 right = rightDir * width * 0.5f;
+        Vector3 up = upDir * height;
+
+        Vector3[] pos = {-right, -right + up, right + up, -right, right + up, right};
+
+        Vector4 tangentData = new(rightDir,
+            Vector3.Dot(Vector3.Cross(look, rightDir), upDir) < 0 ? -1 : 1);
+
+        for (int i = 0; i < 6; i++)
+        {
+            Vector3 normal = upNormal ? Vector3.UnitY : look;
+
+            float weight = heightPaint ? MathHelper.Lerp(minWeight, maxWeight, Vector3.Dot(pos[i], upDir) / height) : 0.0f;
+
+            AddVertex(v, pos[i] + bottom, normal, Game._atlas.Map(texture, QuadUVs[i], look), tangentData, weight);
+        }
+    }
+
     public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture, bool skipRecenter = false, bool heightPaint = false, bool upNormal = false, float minWeight = 0.0f, float maxWeight = 0.0f, float size = 1.0f)
     {
         AddQuad(v, look, offset, TextureNames.Blocks[texture].Name, skipRecenter, heightPaint, upNormal, minWeight, maxWeight, size);

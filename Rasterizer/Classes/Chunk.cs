@@ -25,8 +25,8 @@ public class Chunk
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
     private int foliageCount = 0;
-    private bool homogenous = false;
-    private ushort homogenousBlockId = 0;
+    private bool homogenous = true;
+    private ushort homogenousBlockId = 65535;
 
     private List<float> vertices = new List<float>();
     private List<float> foliageVertices = new List<float>();
@@ -91,7 +91,18 @@ public class Chunk
             int index = GetLocalIdInChunk(x, y, z);
 
             if (!onlyIfAir || blockData[index] == AIR)
+            {
+                if(homogenousBlockId == 65535)
+                {
+                    homogenousBlockId = id;
+                }
+                else if(homogenousBlockId != id)
+                {
+                    homogenous = false;
+                }
                 blockData[index] = id;
+            }
+                
         }
         else
         {
@@ -142,6 +153,11 @@ public class Chunk
                             continue;
 
                         blockData[index] = block.BlockId;
+
+                        if(homogenousBlockId != block.BlockId)
+                        {
+                            homogenous = false;
+                        }
                     }
                 }
     }
@@ -177,7 +193,8 @@ public class Chunk
                         id = rocky ? STONE : DIRT;
                     else if (wy == height)
                         id = topBlock;
-                    SetBlock(x, y, z, id, true);
+                    if(id != AIR)
+                        SetBlock(x, y, z, id, true);
                 }
 
                 int grassY = height - py;
@@ -189,6 +206,8 @@ public class Chunk
                     SetBlock(x, grassY + 1, z, GRASS_CARD, true);
                 else if (!rocky && hash < 0.853f && grassY + 1 < Size)
                     treeSpots[x, grassY + 1, z] = 1;
+                else if (!rocky && hash < 0.869f && grassY + 1 < Size)
+                     SetBlock(x, grassY + 1, z, 64515, true); // fern
             }
 
 
@@ -367,6 +386,38 @@ public class Chunk
         }
     }
 
+    private void FernGen(int x, int y, int z)
+    {
+        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
+        foliageCount++;
+
+        for (int i = 0; i < 12; i++)
+        {
+            float yaw = Random.Shared.NextSingle() * MathF.Tau;
+            float pitch = 0.4f + Random.Shared.NextSingle() * 0.9f;
+
+            Quaternion rotation =
+                Quaternion.FromAxisAngle(Vector3.UnitY, yaw) *
+                Quaternion.FromAxisAngle(Vector3.UnitX, pitch);
+
+            Vector3 look = Vector3.Transform(Vector3.UnitZ, rotation);
+            Vector3 up = Vector3.Transform(Vector3.UnitY, rotation);
+
+            float height = 0.65f + Random.Shared.NextSingle() * 0.5f;
+            float width = 0.65f + Random.Shared.NextSingle() * 0.4f;
+
+            MeshUtility.AddQuadAnchored(
+                foliageVertices,
+                look,
+                _BP + Vector3.UnitY * -0.5f,
+                "fern",
+                width,
+                height,
+                true, true,
+                0.0f, 0.2f);
+        }
+    }
+
     public void CreateMesh(Chunk[,,] chunks)
     {
         Stopwatch sw = Stopwatch.StartNew();
@@ -378,6 +429,11 @@ public class Chunk
         int _x = (int)(Position.X / Size);
         int _y = (int)(Position.Y / Size);
         int _z = (int)(Position.Z / Size);
+
+        if(homogenous)
+        {
+            return;
+        }
 
         // order: +X, -X, +Y, -Y, +Z, -Z (matches GetBlock)
         Chunk[] neighborChunks =
@@ -403,6 +459,8 @@ public class Chunk
                         GrassCardGen(x, y, z);
                     else if (block == 64512) // oak leaf
                         LeafBlockGen(x, y, z);
+                    else if (block == 64515) // fern
+                        FernGen(x, y, z);
 
                 }
 

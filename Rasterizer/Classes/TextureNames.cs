@@ -34,7 +34,8 @@
 
         [64513] = new(64513, "short_grass_card", "short_grass_card", isTransparent: true, isFoliage: true),
 
-        [64514] = new(64514, "dandelion", "dandelion", isTransparent: true, isFoliage: true)
+        [64514] = new(64514, "dandelion", "dandelion", isTransparent: true, isFoliage: true),
+        [64515] = new(64515, "fern", "fern", isTransparent: true, isFoliage: true)
     };
 
     public static readonly string[] Names = Directory

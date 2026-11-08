@@ -61,8 +61,8 @@ public class Game : GameWindow
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(3440, 1440),
-            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
+            ClientSize = new Vector2i(1920, 1080),
+            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
