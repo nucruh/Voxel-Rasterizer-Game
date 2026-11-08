@@ -26,7 +26,7 @@ public class Game : GameWindow
 
     // --- shadow mapping ---
     private const int ShadowMapSize = 4096;
-    private const int WorldChunks = 4;
+    private const int WorldChunks = 16;
     private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
     private const float WorldHeight = 96f;   // replace with your max terrain height
 
@@ -48,7 +48,7 @@ public class Game : GameWindow
     private Frustum lightFrustum = new Frustum();
 
     private float shadowTimer = 0.0f;
-    private const float SHADOW_MAP_RATE = 30.0f;
+    private const float SHADOW_MAP_RATE = 20.0f;
 
     private float infoTimer = 0.0f;
     private const float INFO_TIMER_RATE = 0.5f;
@@ -144,11 +144,11 @@ public class Game : GameWindow
             File.ReadAllText("Shaders/foliage.vert"),
             File.ReadAllText("Shaders/foliage.frag"));
 
-        _atlas = new TextureAtlas("Textures", TextureNames.Names);
+        _atlas = new TextureAtlas(TextureNames.DiffuseFolder, TextureNames.Names);
         // The normal atlas uses the dedicated 256x256 normal texture for every slot.
         // this needs to be changed to autogenerrate normals
         _normalAtlas = new TextureAtlas(
-            "Textures",
+            TextureNames.NormalFolder,
             TextureNames.Names,
             TextureNames.NormalNames,
             256);

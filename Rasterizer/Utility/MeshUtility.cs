@@ -17,6 +17,7 @@ public static class MeshUtility
 {
     public const int FloatsPerVertex = 17;
 
+
     // pos(3) normal(3) uv(2) tangent(4) weight(1) tileRect(4)
     // tileRect = (atlasMinU, atlasMinV, cellWidth, cellHeight). Zero width = no tiling (foliage).
     public static void AddVertex(List<float> v, Vector3 p, Vector3 normal, Vector2 uv,

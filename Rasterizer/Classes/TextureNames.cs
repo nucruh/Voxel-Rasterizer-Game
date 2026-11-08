@@ -1,5 +1,18 @@
 ﻿public static class TextureNames
 {
+    public const string TextureRoot = "Textures";
+    public static readonly string DiffuseFolder = ResolveFolder("Diffuse");
+    public static readonly string NormalFolder = ResolveFolder("Normal");
+    public static readonly string RoughnessFolder = Path.Combine(TextureRoot, "Roughness");
+
+    private static string ResolveFolder(string category)
+    {
+        string folder = Path.Combine(TextureRoot, category);
+        return Directory.Exists(folder) && Directory.EnumerateFiles(folder, "*.png").Any()
+            ? folder
+            : TextureRoot;
+    }
+
     public static readonly Dictionary<int, BlockDefinition> Blocks = new()
     {
         [1] = new(1, "dirt_loam", "dirt_loam"),
@@ -25,7 +38,7 @@
     };
 
     public static readonly string[] Names = Directory
-        .GetFiles("Textures", "*.png")
+        .GetFiles(DiffuseFolder, "*.png")
         .Select(Path.GetFileNameWithoutExtension)
         .Where(x => !x.Contains("normal", StringComparison.OrdinalIgnoreCase))
         .OrderBy(x => x)
@@ -34,9 +47,11 @@
     // One source filename per diffuse atlas slot. Do not remove duplicates:
     // the normal atlas must have the same slot layout as the diffuse atlas.
     public static readonly string[] NormalNames = Names
-        .Select(x => File.Exists(Path.Combine("Textures", x + "_normal.png"))
-            ? x + "_normal"
-            : "normal")
+        .Select(x => File.Exists(Path.Combine(NormalFolder, x + ".png"))
+            ? x
+            : File.Exists(Path.Combine(NormalFolder, x + "_normal.png"))
+                ? x + "_normal"
+                : "normal")
         .ToArray();
 
     public static readonly Dictionary<string, int> NameToId = Blocks.Values.ToDictionary(x => x.Name, x => x.Id);
