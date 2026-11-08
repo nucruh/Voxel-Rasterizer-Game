@@ -15,6 +15,7 @@ My third voxel engine, and the first one to use rasterization instead of raytrac
 | **VRAM** | 1GB recommended |
 | **CPU** | AMD Ryzen 1000 series / Intel 6th–7th Gen |
 | **RAM** | 8GB |
+| **OS** | Windows 10 / 11 (Linux via Wine) |
 
 ### Recommended Requirements
 *Target: 1080p, 60 FPS, 96 block render distance*
@@ -25,3 +26,4 @@ My third voxel engine, and the first one to use rasterization instead of raytrac
 | **VRAM** | 2GB recommended |
 | **CPU** | AMD Ryzen 3000 series / Intel 9th Gen |
 | **RAM** | 8GB |
+| **OS** | Windows 10 / 11 (Linux via Wine) |
