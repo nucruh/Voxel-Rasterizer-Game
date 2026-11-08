@@ -16,6 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Rasterizer.csproj.Backup %281%29.tmp" />
+    <None Remove="Rasterizer.csproj.Backup %282%29.tmp" />
+    <None Remove="Rasterizer.csproj.Backup.tmp" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="OpenTK" Version="4.9.4" />
     <PackageReference Include="StbImageSharp" Version="2.30.16" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.14" />
@@ -60,6 +66,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Textures\**\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Update="Models\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>

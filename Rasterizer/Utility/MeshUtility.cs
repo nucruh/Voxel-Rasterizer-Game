@@ -129,6 +129,100 @@ public static class MeshUtility
         AddQuad(v, look, offset, TextureNames.Blocks[texture].Name, skipRecenter, heightPaint, upNormal, minWeight, maxWeight, size);
     }
 
+    public static void AddModel(
+    List<float> v,
+    string modelName,
+    Vector3 position,
+    Quaternion? rotation = null,
+    Vector3? scale = null,
+    bool heightPaint = false,
+    float minWeight = 0.0f,
+    float maxWeight = 0.0f)
+    {
+        AddModel(v, Models.Get(modelName), position, rotation, scale, heightPaint, minWeight, maxWeight);
+    }
+
+    public static void AddModel(
+        List<float> v,
+        Model model,
+        Vector3 position,
+        Quaternion? rotation = null,
+        Vector3? scale = null,
+        bool heightPaint = false,
+        float minWeight = 0.0f,
+        float maxWeight = 0.0f)
+    {
+        Quaternion rot = rotation ?? Quaternion.Identity;
+        Vector3 s = scale ?? Vector3.One;
+
+        // a mirrored scale (odd number of negatives) flips the winding and the tangent handedness
+        bool mirrored = s.X * s.Y * s.Z < 0;
+
+        float[] src = model.Vertices;
+        int vertexCount = src.Length / FloatsPerVertex;
+
+        v.EnsureCapacity(v.Count + src.Length);
+
+        // reads one vertex at index i
+        Vertex Read(int i)
+        {
+            int o = i * FloatsPerVertex;
+            return new Vertex
+            {
+                Position = new Vector3(src[o], src[o + 1], src[o + 2]),
+                Normal = new Vector3(src[o + 3], src[o + 4], src[o + 5]),
+                UV = new Vector2(src[o + 6], src[o + 7]),
+                Tangent = new Vector4(src[o + 8], src[o + 9], src[o + 10], src[o + 11]),
+                Weight = src[o + 12],
+                TileRect = new Vector4(src[o + 13], src[o + 14], src[o + 15], src[o + 16])
+            };
+        }
+
+        void Emit(in Vertex vert)
+        {
+            // position: scale, rotate, translate
+            Vector3 p = rot * (vert.Position * s) + position;
+
+            // normal: inverse-transpose of the scale keeps it correct for non-uniform scale
+            Vector3 n = rot * (vert.Normal / s);
+            n = n.LengthSquared > 1e-12f ? Vector3.Normalize(n) : Vector3.UnitY;
+
+            // tangent lies in the surface, so it transforms like a position direction
+            Vector3 t = rot * (vert.Tangent.Xyz * s);
+            t = t.LengthSquared > 1e-12f ? Vector3.Normalize(t) : Vector3.UnitX;
+            float w = mirrored ? -vert.Tangent.W : vert.Tangent.W;
+
+            float weight = heightPaint
+                ? MathHelper.Lerp(minWeight, maxWeight, MathHelper.Clamp(vert.Position.Y, 0f, 1f))
+                : vert.Weight;
+
+            AddVertex(v, p, n, vert.UV, new Vector4(t, w), weight, vert.TileRect);
+        }
+
+        for (int i = 0; i < vertexCount; i += 3)
+        {
+            Vertex a = Read(i), b = Read(i + 1), c = Read(i + 2);
+
+            if (mirrored)
+            {
+                Emit(a); Emit(c); Emit(b);   // swap to keep the winding order
+            }
+            else
+            {
+                Emit(a); Emit(b); Emit(c);
+            }
+        }
+    }
+
+    // convenience: yaw in degrees, uniform scale (the common case for placed props)
+    public static void AddModel(List<float> v, string modelName, Vector3 position,
+                                float yawDegrees, float scale = 1.0f)
+    {
+        AddModel(v, modelName, position,
+            Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(yawDegrees)),
+            new Vector3(scale));
+    }
+
     public static int GetTotalTriangles(Mesh[] meshes)
     {
         return meshes.Sum(m => m.TriangleCount);

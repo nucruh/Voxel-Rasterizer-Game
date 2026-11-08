@@ -208,6 +208,8 @@ public class Chunk
                     treeSpots[x, grassY + 1, z] = 1;
                 else if (!rocky && hash < 0.869f && grassY + 1 < Size)
                      SetBlock(x, grassY + 1, z, 64515, true); // fern
+                else if (!rocky && hash < 0.9f && grassY + 1 < Size)
+                    SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
             }
 
 
@@ -416,6 +418,15 @@ public class Chunk
                 true, true,
                 0.0f, 0.2f);
         }
+
+        //MeshUtility.AddModel(foliageVertices, "andesite_pebble_1", _BP, 90f);
+    }
+
+    private void PebbleGen(int x, int y, int z)
+    {
+        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
+
+        MeshUtility.AddModel(vertices, "andesite_pebble_1", _BP, 90f);
     }
 
     public void CreateMesh(Chunk[,,] chunks)
@@ -461,6 +472,8 @@ public class Chunk
                         LeafBlockGen(x, y, z);
                     else if (block == 64515) // fern
                         FernGen(x, y, z);
+                    else if (block == 64516) // pebble
+                        PebbleGen(x, y, z);
 
                 }
 

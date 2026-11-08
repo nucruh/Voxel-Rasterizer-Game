@@ -153,6 +153,8 @@ public class Game : GameWindow
             TextureNames.NormalNames,
             256);
 
+        Models.Initialize();
+
         Stopwatch sw = Stopwatch.StartNew();
 
         // firs paralell pass; gen chunks
@@ -323,6 +325,7 @@ public class Game : GameWindow
 
         float dt = (float)e.Time;
         float speed = _camera.Speed * (KeyboardState.IsKeyDown(Keys.LeftControl) ? 3f : 1f);
+        speed = speed * (KeyboardState.IsKeyDown(Keys.LeftShift) ? 0.1f : 1f);
 
         Vector3 flatFront = Vector3.Normalize(new Vector3(_camera.Front.X, 0, _camera.Front.Z));
         Vector3 move = Vector3.Zero;
@@ -332,7 +335,6 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.D)) move += _camera.Right;
         if (KeyboardState.IsKeyDown(Keys.A)) move -= _camera.Right;
         if (KeyboardState.IsKeyDown(Keys.Space)) move += Vector3.UnitY;
-        if (KeyboardState.IsKeyDown(Keys.LeftShift)) move -= Vector3.UnitY;
 
         if (KeyboardState.IsKeyPressed(Keys.F1))
         {
