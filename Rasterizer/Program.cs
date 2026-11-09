@@ -26,7 +26,7 @@ public class Game : GameWindow
 
     // --- shadow mapping ---
     private const int ShadowMapSize = 4096;
-    private const int WorldChunks = 24;
+    private const int WorldChunks = 4;
     private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
     private const float WorldHeight = 96f;   // replace with your max terrain height
 
