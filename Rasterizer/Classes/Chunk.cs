@@ -25,8 +25,6 @@ public class Chunk
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
     private int foliageCount = 0;
-    private bool homogenous = true;
-    private ushort homogenousBlockId = 65535;
 
     private List<float> vertices = new List<float>();
     private List<float> foliageVertices = new List<float>();
@@ -92,14 +90,6 @@ public class Chunk
 
             if (!onlyIfAir || blockData[index] == AIR)
             {
-                if(homogenousBlockId == 65535)
-                {
-                    homogenousBlockId = id;
-                }
-                else if(homogenousBlockId != id)
-                {
-                    homogenous = false;
-                }
                 blockData[index] = id;
             }
                 
@@ -154,12 +144,16 @@ public class Chunk
 
                         blockData[index] = block.BlockId;
 
-                        if(homogenousBlockId != block.BlockId)
-                        {
-                            homogenous = false;
-                        }
                     }
                 }
+    }
+
+    private bool IsAllSame(out ushort id)
+    {
+        id = blockData[0];
+        for (int i = 1; i < blockData.Length; i++)
+            if (blockData[i] != id) return false;
+        return true;
     }
 
     public void Generate()
@@ -467,10 +461,8 @@ public class Chunk
         int _y = (int)(Position.Y / Size);
         int _z = (int)(Position.Z / Size);
 
-        if(homogenous)
-        {
-            return;
-        }
+        if (IsAllSame(out ushort first) && first == AIR)
+            return; // truly empty chunk, nothing to draw
 
         // order: +X, -X, +Y, -Y, +Z, -Z (matches GetBlock)
         Chunk[] neighborChunks =
