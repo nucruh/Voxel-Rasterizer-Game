@@ -18,6 +18,21 @@ public abstract class UiElement
     public abstract (float w, float h) Measure();
     public virtual void Layout(float x, float y) { X = x; Y = y; }
     public abstract void Draw(int z);
+
+    public string Name = "";
+
+    public UiElement? Find(string name)
+    {
+        if (Name == name) return this;
+
+        foreach (var child in Children)
+        {
+            var found = child.Find(name);
+            if (found != null) return found;
+        }
+
+        return null;
+    }
 }
 
 public class Frame : UiElement
@@ -238,6 +253,19 @@ public class Image : UiElement
 
     public override void Draw(int z)
         => ImageRenderer.Render(Texture, X, Y, W, H, Tint, Alpha, z + ZOffset, U0, V0, U1, V1);
+}
+
+public class Rect : UiElement
+{
+    public BitmapFontRenderer.TextColor Color = new(255, 255, 255);
+    public float Alpha = 1f;
+
+    public override (float, float) Measure() => (W, H);
+
+    public override void Draw(int z)
+    {
+        BitmapFontRenderer.RenderRect(X, Y, W, H, Color, z + ZOffset, Alpha);
+    }
 }
 
 // MMM LOVE ME SOME ROBLOX STYLE SHIT

@@ -58,13 +58,15 @@ public class Game : GameWindow
 
     private Frame _menu = null!;
 
+    private Frame _perfMenu = null!;
+
 
     public Game() : base(
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(1920, 1080),
-            Location = SystemInfo.screenCenter - new Vector2i(1920 / 2, 1080 / 2),
+            ClientSize = new Vector2i(3440, 1440),
+            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
@@ -252,6 +254,61 @@ public class Game : GameWindow
                     }
                 }
             }
+        };
+
+        _perfMenu = new Frame
+        {
+            Children =
+            {
+                new Rect
+                {
+                    W = 700,
+                    H = 400,
+                    Position = new UDim2(0.0f, 5, 0.0f, 5),
+                    Alpha = 0.6f,
+                    Color = new TextColor(15, 20, 28)
+                },
+
+                new Stack
+                {
+                    Gap = 10,
+                    Position = new UDim2(0.0f, 10, 0.0f, 10),
+                    AnchorPoint = (0.0f, 0.0f),
+                    Children =
+                    {
+                        new Label("F1 to open / close"),
+                        new Rect
+                        {
+                            W = 0,
+                            H = 20,
+                            Position = new UDim2(0.0f, 10, 0.0f, 10),
+                            Alpha = 1.0f,
+                            Color = new TextColor(15, 20, 28)
+                        },
+                        new Label("-   PERFORMANCE   -"),
+                        new Label("RAM : 0 MB"),
+                        new Label("VRAM : 0 MB"),
+                        new Label("FPS : 0"),
+                        new Label("Triangles : 0"),
+                        new Label("Gen time : 0 ms"),
+                        new Label("Draw calls : 0"),
+
+                        new Rect
+                        {
+                            W = 0,
+                            H = 20,
+                            Position = new UDim2(0.0f, 10, 0.0f, 10),
+                            Alpha = 1.0f,
+                            Color = new TextColor(15, 20, 28)
+                        },
+                        new Label("-    GAME DATA    -"),
+                        new Label($"Screen : {ClientSize.X} x {ClientSize.Y}"),
+                        new Label($"GPU : {SystemInfo.gpuRenderer}"),
+                        new Label($"Camera Position: {_camera.Position}"),
+                    }
+                }
+            },
+
         };
 
         RenderShadowMap();
@@ -544,14 +601,14 @@ public class Game : GameWindow
 
         GL.Enable(EnableCap.CullFace);
 
-        RenderHud(drawCalls);
+        //RenderHud(drawCalls);
 
         var m = MouseState;
         Ui.SetMouse(m.X, m.Y, m.IsButtonDown(MouseButton.Left));
 
 
 
-        //Ui.RenderScreen(_menu);
+        Ui.RenderScreen(_perfMenu);
 
         UiRenderQueue.Flush();
 
