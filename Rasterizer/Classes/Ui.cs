@@ -83,6 +83,11 @@ public class Label : UiElement
     public BitmapFontRenderer.TextColor Color = BitmapFontRenderer.white;
 
     public Label(string text) => Text = text;
+    public Label(string text, string name)
+    {
+        Text = text;
+        Name = name;
+    }
 
     public override (float, float) Measure()
     {

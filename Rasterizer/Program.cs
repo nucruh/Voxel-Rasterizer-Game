@@ -60,13 +60,21 @@ public class Game : GameWindow
 
     private Frame _perfMenu = null!;
 
+    private bool perfMenuVisible = true;
+
+    private bool doMaxResolution = false;
+    private bool showMenu = false;
+
+    //prevents snapping when resizing window
+    private bool _ignoreMouse = false;
+
 
     public Game() : base(
         GameWindowSettings.Default,
         new NativeWindowSettings
         {
-            ClientSize = new Vector2i(3440, 1440),
-            Location = SystemInfo.screenCenter - new Vector2i(3440 / 2, 1440 / 2),
+            ClientSize = Monitors.GetPrimaryMonitor()!.ClientArea.Size,
+            Location = Vector2i.Zero,
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
@@ -238,8 +246,9 @@ public class Game : GameWindow
             {
                 new Image(icon)
                 {
-                    Size = new UDim2(0, 64, 0, 64),
-                    Position = new UDim2(0, 10, 0, 10)
+                    Size = new UDim2(0, 300, 0, 150),
+                    Position = new UDim2(0.5f, 0, 0.35f, 0),
+                    AnchorPoint = (0.5f, 0.5f)
                 },
 
                 new Stack
@@ -262,8 +271,7 @@ public class Game : GameWindow
             {
                 new Rect
                 {
-                    W = 700,
-                    H = 400,
+                    Size = new UDim2(0.17f, 0.0f, 0.27f, 0.0f),
                     Position = new UDim2(0.0f, 5, 0.0f, 5),
                     Alpha = 0.6f,
                     Color = new TextColor(15, 20, 28)
@@ -271,27 +279,29 @@ public class Game : GameWindow
 
                 new Stack
                 {
-                    Gap = 10,
+                    Gap = 5,
                     Position = new UDim2(0.0f, 10, 0.0f, 10),
                     AnchorPoint = (0.0f, 0.0f),
                     Children =
                     {
-                        new Label("F1 to open / close"),
+                        new Label("F1 to open / close", "F1Label"),
+                        new Label("F2 to toggle wireframe", "F2Label"),
                         new Rect
                         {
                             W = 0,
                             H = 20,
                             Position = new UDim2(0.0f, 10, 0.0f, 10),
                             Alpha = 1.0f,
-                            Color = new TextColor(15, 20, 28)
+                            Color = new TextColor(15, 20, 28),
+                            Name = "PerfRect"
                         },
-                        new Label("-   PERFORMANCE   -"),
-                        new Label("RAM : 0 MB"),
-                        new Label("VRAM : 0 MB"),
-                        new Label("FPS : 0"),
-                        new Label("Triangles : 0"),
-                        new Label("Gen time : 0 ms"),
-                        new Label("Draw calls : 0"),
+                        new Label("-   PERFORMANCE   -", "PerfTitle"),
+                        new Label("RAM : 0 MB", "UsageRAM"),
+                        new Label("VRAM : 0 MB", "UsageVRAM"),
+                        new Label("FPS : 0", "FPS"),
+                        new Label("Triangles : 0", "Triangles"),
+                        new Label("Gen time : 0 ms", "GenTime"),
+                        new Label("Draw calls : 0", "DrawCalls"),
 
                         new Rect
                         {
@@ -302,11 +312,12 @@ public class Game : GameWindow
                             Color = new TextColor(15, 20, 28)
                         },
                         new Label("-    GAME DATA    -"),
-                        new Label($"Screen : {ClientSize.X} x {ClientSize.Y}"),
+                        new Label($"Screen : {ClientSize.X} x {ClientSize.Y}", "Screen"),
                         new Label($"GPU : {SystemInfo.gpuRenderer}"),
                         new Label($"Camera Position: {_camera.Position}"),
                     }
                 }
+                
             },
 
         };
@@ -398,14 +409,18 @@ public class Game : GameWindow
         base.OnResize(e);
         GL.Viewport(0, 0, e.Width, e.Height);
         ResizeText(e.Width, e.Height);
+
+        CursorState = CursorState.Grabbed;
+
+        _ignoreMouse = true;
     }
 
     protected override void OnUpdateFrame(FrameEventArgs e)
     {
         base.OnUpdateFrame(e);
 
-        if (KeyboardState.IsKeyDown(Keys.Escape))
-            Close();
+        //if (KeyboardState.IsKeyDown(Keys.Escape))
+            //Close();
 
         if (!IsFocused)
             return;
@@ -425,16 +440,62 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.A)) move -= _camera.Right;
         if (KeyboardState.IsKeyDown(Keys.Space)) move += Vector3.UnitY;
 
-        if (KeyboardState.IsKeyPressed(Keys.F1))
+        if (KeyboardState.IsKeyPressed(Keys.F2))
         {
             _wireframe = !_wireframe;
             GL.PolygonMode(TriangleFace.FrontAndBack, _wireframe ? PolygonMode.Line : PolygonMode.Fill);
         }
 
+        if(KeyboardState.IsKeyPressed(Keys.F1))
+        {
+            perfMenuVisible = !perfMenuVisible;
+        }
+
+        if(KeyboardState.IsKeyPressed(Keys.F11))
+        {
+            doMaxResolution = !doMaxResolution;
+            if (doMaxResolution)
+            {
+                WindowBorder = WindowBorder.Hidden;
+                var primaryMonitor = Monitors.GetPrimaryMonitor();
+                ClientSize = primaryMonitor!.ClientArea.Size;
+                Location = Vector2i.Zero;
+
+            }
+            else
+            {
+                ClientSize = new Vector2i(1280, 720);
+                Location = SystemInfo.screenCenter - new Vector2i(1280 / 2, 720 / 2);
+                WindowBorder = WindowBorder.Resizable;
+            }
+        }
+
         if (move != Vector3.Zero)
             _camera.Position += Vector3.Normalize(move) * speed * dt;
 
-        _camera.Look(MouseState.Delta);
+        if (KeyboardState.IsKeyPressed(Keys.Escape))
+        {
+            showMenu = !showMenu;
+
+            if (showMenu)
+            {
+                CursorState = CursorState.Normal;
+            }
+            else
+            {
+                CursorState = CursorState.Grabbed;
+            }
+
+        }
+
+        if (_ignoreMouse)
+        {
+            _ignoreMouse = false;
+            return;
+        }
+
+        if(!showMenu)
+            _camera.Look(MouseState.Delta);
     }
 
     static private int countFrame = 0;
@@ -608,7 +669,38 @@ public class Game : GameWindow
 
 
 
-        Ui.RenderScreen(_perfMenu);
+
+
+        if(perfMenuVisible)
+        {
+            var fps = _perfMenu.Find("FPS") as Label;
+            fps.Text = $"FPS       : {Math.Round(lastFps, 0)}";
+
+            var ram = _perfMenu.Find("UsageRAM") as Label;
+            ram.Text = $"RAM       : {ramUsage} MB";
+
+            var vram = _perfMenu.Find("UsageVRAM") as Label;
+            vram.Text = $"VRAM      : {vramUsage / (1024f * 1024f):f0} MB";
+
+            var tris = _perfMenu.Find("Triangles") as Label;
+            tris.Text = $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k";
+
+            var gen = _perfMenu.Find("GenTime") as Label;
+            gen.Text = $"Gen time  : {totalGenerationTime:f0} ms";
+
+            var calls = _perfMenu.Find("DrawCalls") as Label;
+            calls.Text = $"Draw calls: {drawCalls}";
+
+            var screen = _perfMenu.Find("Screen") as Label;
+            screen.Text = $"Screen    : {ClientSize.X} x {ClientSize.Y}";
+
+            Ui.RenderScreen(_perfMenu);
+        }
+
+        if(showMenu)
+        {
+            Ui.RenderScreen(_menu);
+        }
 
         UiRenderQueue.Flush();
 

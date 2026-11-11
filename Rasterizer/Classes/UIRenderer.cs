@@ -170,7 +170,10 @@ public static class BitmapFontRenderer
         if (newScale > 0)
             TextScale = newScale;
         else
-            TextScale = Math.Max(1, (int)Math.Round(newHeight / 270f)); // ~1 per 270px
+        {
+            float scale = newHeight / 1080f;
+            TextScale = Math.Max(1, (int)MathF.Round(2f * scale));
+        }    
 
         GL.UseProgram(_program);
         GL.Uniform2(GL.GetUniformLocation(_program, "uScreenSize"),
