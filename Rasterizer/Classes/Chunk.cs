@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using OpenTK.Mathematics;
+using System.Collections.Concurrent;
 
 
 public struct BlockPlacement
@@ -18,7 +19,7 @@ public struct BlockPlacement
 
 public class Chunk
 {
-    public Vector3 Position;
+    public Vector3i Position;
     public const int Size = 32;
     public bool IsEmpty;
     public Mesh? mesh;
@@ -34,7 +35,7 @@ public class Chunk
     [ThreadStatic] private static ushort[]? _mask;
     [ThreadStatic] private static int[]? _p;
 
-    public Chunk(Vector3 position)
+    public Chunk(Vector3i position)
     {
         Position = position;
         IsEmpty = false;
@@ -102,7 +103,7 @@ public class Chunk
         }
     }
 
-    public void ApplyOverflow(Chunk[,,] chunks)
+    public void ApplyOverflow(ConcurrentDictionary<Vector3i, Chunk> chunks)
     {
         int cx = (int)(Position.X / Size);
         int cy = (int)(Position.Y / Size);
@@ -119,12 +120,8 @@ public class Chunk
                     int ny = cy + y;
                     int nz = cz + z;
 
-                    if (nx < 0 || nx >= chunks.GetLength(0) ||
-                        ny < 0 || ny >= chunks.GetLength(1) ||
-                        nz < 0 || nz >= chunks.GetLength(2))
+                    if (!chunks.TryGetValue(new Vector3i(nx, ny, nz), out Chunk? neighbor))
                         continue;
-
-                    Chunk neighbor = chunks[nx, ny, nz];
 
                     foreach (var block in neighbor.overflowBlocks)
                     {
@@ -449,7 +446,7 @@ public class Chunk
         }
     }
 
-    public void CreateMesh(Chunk[,,] chunks)
+    public void CreateMesh(ConcurrentDictionary<Vector3i, Chunk> chunks)
     {
         Stopwatch sw = Stopwatch.StartNew();
         vertices = new List<float>();
@@ -467,12 +464,12 @@ public class Chunk
         // order: +X, -X, +Y, -Y, +Z, -Z (matches GetBlock)
         Chunk[] neighborChunks =
         {
-            _x + 1 < chunks.GetLength(0) ? chunks[_x + 1, _y, _z] : null!,
-            _x - 1 >= 0 ? chunks[_x - 1, _y, _z] : null!,
-            _y + 1 < chunks.GetLength(1) ? chunks[_x, _y + 1, _z] : null!,
-            _y - 1 >= 0 ? chunks[_x, _y - 1, _z] : null!,
-            _z + 1 < chunks.GetLength(2) ? chunks[_x, _y, _z + 1] : null!,
-            _z - 1 >= 0 ? chunks[_x, _y, _z - 1] : null!
+            chunks.GetValueOrDefault(new Vector3i(_x + 1, _y, _z))!,
+            chunks.GetValueOrDefault(new Vector3i(_x - 1, _y, _z))!,
+            chunks.GetValueOrDefault(new Vector3i(_x, _y + 1, _z))!,
+            chunks.GetValueOrDefault(new Vector3i(_x, _y - 1, _z))!,
+            chunks.GetValueOrDefault(new Vector3i(_x, _y, _z + 1))!,
+            chunks.GetValueOrDefault(new Vector3i(_x, _y, _z - 1))!
         };
 
         // foliage still needs a per-block pass

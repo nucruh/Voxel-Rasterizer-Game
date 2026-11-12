@@ -3,6 +3,7 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
@@ -26,8 +27,9 @@ public class Game : GameWindow
 
     // --- shadow mapping ---
     private const int ShadowMapSize = 4096;
-    private const int WorldChunks = 4;
-    private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
+    private const int WorldChunks = 6;
+    //private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
+    private ConcurrentDictionary<Vector3i, Chunk> _chunks = new();
     private const float WorldHeight = 96f;   // replace with your max terrain height
 
     public double totalGenerationTime = 0.0f;
@@ -176,14 +178,14 @@ public class Game : GameWindow
             for (int z = 0; z < WorldChunks; z++)
                 for (int y = 0; y < 3; y++)
                 {
-                    Chunk c = new Chunk(new Vector3(x * Chunk.Size, y * Chunk.Size, z * Chunk.Size));
+                    Chunk c = new Chunk(new Vector3i(x * Chunk.Size, y * Chunk.Size, z * Chunk.Size));
                     c.Generate();
-                    _chunks[x, y, z] = c;
+                    _chunks[new Vector3i(x, y, z)] = c;
                 }
         });
 
         // second parallel pass; overflow
-        Parallel.ForEach(_chunks.Cast<Chunk>(), c =>
+        Parallel.ForEach(_chunks.Values, c =>
         {
             // overflow blocks generated in first pass
             c.ApplyOverflow(_chunks);
@@ -191,14 +193,14 @@ public class Game : GameWindow
 
         // third parallel pass; mesh gen
         Stopwatch swmesh = Stopwatch.StartNew();
-        Parallel.ForEach(_chunks.Cast<Chunk>(), c =>
+        Parallel.ForEach(_chunks.Values, c =>
         {
             c.CreateMesh(_chunks);
         });
 
 
         // fourth pass; upload meshes to gpu, add to scene
-        foreach (var c in _chunks)
+        foreach (var c in _chunks.Values)
         {
             c.ApplyMesh();
             _sceneObjects.Add(c.mesh!);
@@ -674,25 +676,25 @@ public class Game : GameWindow
         if(perfMenuVisible)
         {
             var fps = _perfMenu.Find("FPS") as Label;
-            fps.Text = $"FPS       : {Math.Round(lastFps, 0)}";
+            fps?.Text = $"FPS       : {Math.Round(lastFps, 0)}";
 
             var ram = _perfMenu.Find("UsageRAM") as Label;
-            ram.Text = $"RAM       : {ramUsage} MB";
+            ram?.Text = $"RAM       : {ramUsage} MB";
 
             var vram = _perfMenu.Find("UsageVRAM") as Label;
-            vram.Text = $"VRAM      : {vramUsage / (1024f * 1024f):f0} MB";
+            vram?.Text = $"VRAM      : {vramUsage / (1024f * 1024f):f0} MB";
 
             var tris = _perfMenu.Find("Triangles") as Label;
-            tris.Text = $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k";
+            tris?.Text = $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k";
 
             var gen = _perfMenu.Find("GenTime") as Label;
-            gen.Text = $"Gen time  : {totalGenerationTime:f0} ms";
+            gen?.Text = $"Gen time  : {totalGenerationTime:f0} ms";
 
             var calls = _perfMenu.Find("DrawCalls") as Label;
-            calls.Text = $"Draw calls: {drawCalls}";
+            calls?.Text = $"Draw calls: {drawCalls}";
 
             var screen = _perfMenu.Find("Screen") as Label;
-            screen.Text = $"Screen    : {ClientSize.X} x {ClientSize.Y}";
+            screen?.Text = $"Screen    : {ClientSize.X} x {ClientSize.Y}";
 
             Ui.RenderScreen(_perfMenu);
         }
