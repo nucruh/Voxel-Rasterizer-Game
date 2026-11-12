@@ -10,6 +10,8 @@ public class Mesh : IDisposable
 
     public Vector3 _meshPosition;
 
+    public bool Active = true;
+
     public int TriangleCount => _vertexCount / 3;
 
     public Mesh(float[] vertices, bool isFoliage = false, Vector3 meshPosition = default)

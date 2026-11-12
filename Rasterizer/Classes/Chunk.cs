@@ -2,7 +2,6 @@
 using OpenTK.Mathematics;
 using System.Collections.Concurrent;
 
-
 public struct BlockPlacement
 {
     public Vector3 Position;
@@ -21,6 +20,7 @@ public class Chunk
 {
     public Vector3i Position;
     public const int Size = 32;
+    public bool Active = true;
     public bool IsEmpty;
     public Mesh? mesh;
     public Mesh? foliageMesh;
@@ -508,6 +508,9 @@ public class Chunk
         if (foliageCount != 0)
             foliageMesh = new Mesh(foliageVertices.ToArray(), true, Position);
 
+
+        vertices.Clear();
+        foliageVertices.Clear();
         // make some code that disposes the list of vertices and foliageVertices after the mesh is applied, to free up memory, also somehow make it so that apply mesh is run immediately after create mesh for each chunk
         // dont wait for all to generate
     }
@@ -641,8 +644,31 @@ public class Chunk
             pos[v] = j - 0.5f + b * h;
             pos += Position;
 
-            MeshUtility.AddVertex(vertices, pos, look, new Vector2(a * w, b * h),
-                                  tangentData, 0f, rect);
+            MeshUtility.AddVertex(vertices, pos, look, new Vector2(a * w, b * h), tangentData, 0f, rect);
         }
+    }
+
+    public void Unload()
+    {
+        Active = false;
+        mesh?.Active = false;
+        foliageMesh?.Active = false;
+        //mesh?.Dispose();
+    }
+
+    public void Load()
+    {
+        mesh?.Active = true;
+        foliageMesh?.Active = true;
+        Active = true;
+    }
+
+    public void Dispose()
+    {
+        vertices.Clear();
+        foliageVertices.Clear();
+
+        mesh?.Dispose();
+
     }
 }

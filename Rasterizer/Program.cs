@@ -30,6 +30,7 @@ public class Game : GameWindow
     private const int WorldChunks = 6;
     //private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
     private ConcurrentDictionary<Vector3i, Chunk> _chunks = new();
+    public Dictionary<Vector3i, bool> _chunkGenerateQueue = new();
     private const float WorldHeight = 96f;   // replace with your max terrain height
 
     public double totalGenerationTime = 0.0f;
@@ -324,6 +325,8 @@ public class Game : GameWindow
 
         };
 
+        //_chunks[new Vector3i(0, 1, 0)].Unload();
+
         RenderShadowMap();
     }
 
@@ -381,6 +384,9 @@ public class Game : GameWindow
 
         foreach (var mesh in _sceneObjects)
         {
+            if(mesh.Active != true)
+                continue;
+
             _shadowShader.SetInt("isFoliage", mesh.IsFoliage ? 1 : 0);
 
             Vector3 min = mesh._meshPosition - new Vector3(0.8f);
@@ -394,7 +400,6 @@ public class Game : GameWindow
                 //continue;
                 GL.Disable(EnableCap.CullFace);
             }
-                
 
             mesh.Draw();
 
@@ -426,8 +431,6 @@ public class Game : GameWindow
 
         if (!IsFocused)
             return;
-
-
 
         float dt = (float)e.Time;
         float speed = _camera.Speed * (KeyboardState.IsKeyDown(Keys.LeftControl) ? 3f : 1f);
@@ -498,6 +501,49 @@ public class Game : GameWindow
 
         if(!showMenu)
             _camera.Look(MouseState.Delta);
+
+        // generate sorrounding terrain
+        Vector3i posChunk = new Vector3i(
+            (int)MathF.Floor(_camera.Position.X / Chunk.Size),
+            (int)MathF.Floor(_camera.Position.Y / Chunk.Size),
+            (int)MathF.Floor(_camera.Position.Z / Chunk.Size)
+        );
+
+        // implement neighbor updates
+        for (int x = posChunk.X - 1; x <= posChunk.X + 1; x++)
+        {
+            for (int y = 0; y < 3; y++)
+            {
+                for (int z = posChunk.Z - 1; z <= posChunk.Z + 1; z++)
+                {
+                    Vector3i targetPos = new Vector3i(x, y, z);
+                    if (_chunks.ContainsKey(targetPos))
+                        continue;
+                    _chunkGenerateQueue[targetPos] = true;
+                }
+            }
+        }
+
+        foreach (var pos in _chunkGenerateQueue.Keys.ToArray())
+        {
+            Chunk c = new Chunk(pos * Chunk.Size);
+
+            c.Generate();
+            _chunks[pos] = c;
+
+            c.ApplyOverflow(_chunks);
+            c.CreateMesh(_chunks);
+            c.ApplyMesh();
+
+            _sceneObjects.Add(c.mesh!);
+
+            if (c.foliageMesh != null)
+                _sceneObjects.Add(c.foliageMesh);
+
+            _chunkGenerateQueue.Remove(pos, out _);
+        }
+
+
     }
 
     static private int countFrame = 0;
@@ -605,6 +651,9 @@ public class Game : GameWindow
         cameraFrustum.Update(view * projection);
         foreach (var mesh in _sceneObjects)
         {
+            if (mesh.Active != true)
+                continue;
+
             Vector3 min = mesh._meshPosition - new Vector3(0.8f);
             Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
 
@@ -648,6 +697,9 @@ public class Game : GameWindow
 
         foreach (var mesh in _sceneObjects)
         {
+            if (!mesh.Active)
+                continue;
+
             Vector3 min = mesh._meshPosition - new Vector3(0.8f);
             Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
 
@@ -668,10 +720,6 @@ public class Game : GameWindow
 
         var m = MouseState;
         Ui.SetMouse(m.X, m.Y, m.IsButtonDown(MouseButton.Left));
-
-
-
-
 
         if(perfMenuVisible)
         {
@@ -707,33 +755,6 @@ public class Game : GameWindow
         UiRenderQueue.Flush();
 
         SwapBuffers();
-    }
-
-    private void RenderHud(uint drawCalls)
-    {
-        const float margin = 12f;
-        const float panelWidth = 700f;
-        const float panelHeight = 275f;
-
-        RenderRect(margin, margin, panelWidth, panelHeight,
-                   new TextColor(15, 20, 28), zIndex: 0, alpha: 0.88f);
-
-        string data = $"RAM       : {ramUsage} MB\n" +
-            $"VRAM      : {vramUsage / (1024f * 1024f):f0} MB\n" +
-            $"FPS       : {Math.Round(lastFps, 0)}\n" +
-            $"Triangles : {GetTotalTriangles(_sceneObjects.ToArray()) / 1000:f1}k\n" +
-            $"Gen time  : {totalGenerationTime:f0} ms\n" +
-            $"Draw calls: {drawCalls}\n" +
-            $"Screen    : {ClientSize.X} x {ClientSize.Y}";
-
-        RenderText(data,
-            (margin + 10f) / ClientSize.X,
-            (margin + 10f) / ClientSize.Y,
-            white,
-            zIndex: 1);
-
-        RenderText("+", 0.5f, 0.5f,
-                   new TextColor(255, 255, 255), zIndex: 2);
     }
 
     protected override void OnUnload()
