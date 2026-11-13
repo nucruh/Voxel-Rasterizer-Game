@@ -5,10 +5,10 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Drawing;
-using System.Runtime.InteropServices;
 using static BitmapFontRenderer;
 using static MeshUtility;
+using static EngineSettings;
+using static FileRead;
 using GameWindow = OpenTK.Windowing.Desktop.GameWindow;
 
 using var game = new Game();
@@ -16,60 +16,72 @@ game.Run();
 
 public class Game : GameWindow
 {
+    #region Rendering
+    // Shaders
     private Shader _shader = null!;
-    private List<Mesh> _sceneObjects = new List<Mesh>();
-    private Camera _camera = null!;
+    private Shader _shadowShader = null!;
+    private Shader _foliageShader = null!;
+    private Shader _skyShader = null!;
+
+
+    // Atlases
     public static TextureAtlas _atlas = null!;
     public static TextureAtlas _normalAtlas = null!;
-    private bool _wireframe = false;
 
-    public static int _worldSeed = 1234;
-
-    // --- shadow mapping ---
+    // Shadows
     private const int ShadowMapSize = 4096;
-    private const int WorldChunks = 6;
-    //private Chunk[,,] _chunks = new Chunk[WorldChunks, 3, WorldChunks];
-    private ConcurrentDictionary<Vector3i, Chunk> _chunks = new();
-    public Dictionary<Vector3i, bool> _chunkGenerateQueue = new();
-    private const float WorldHeight = 96f;   // replace with your max terrain height
-
-    public double totalGenerationTime = 0.0f;
-
-    private Shader _shadowShader = null!;
     private ShadowMap _shadow = null!;
-    private Shader _foliageShader = null!;
+
+    // Light
     private Matrix4 _lightSpace;
     private Vector3 _lightDir = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.3f)); // direction the light TRAVELS
     private float _texelWorld;
-    private double _time;
 
-    private Shader _skyShader = null!;
+    #endregion Rendering
+
+    #region Bindings
     private int _skyVao;
-    private readonly VramMonitor _vram = new();
+    #endregion Bindings
+
+    #region Camera and Scene
+    public static Camera _camera = null!;
+
+    public static List<Mesh> _sceneObjects = new List<Mesh>();
+    public static ConcurrentDictionary<Vector3i, Chunk> _chunks = new();
+    public static Dictionary<Vector3i, bool> _chunkGenerateQueue = new();
 
     private Frustum cameraFrustum = new Frustum();
     private Frustum lightFrustum = new Frustum();
 
+    public static int _worldSeed = 1234;
+    public static readonly int WorldChunks = 6;
+    private bool _wireframe = false;
+    #endregion Camera and Scene
+
+    #region Statistics
+    public static double totalGenerationTime = 0.0f;
+    private readonly VramMonitor _vram = new();
+
+    // Timers
+    private double _time = 0.0;
     private float shadowTimer = 0.0f;
-    private const float SHADOW_MAP_RATE = 20.0f;
-
     private float infoTimer = 0.0f;
-    private const float INFO_TIMER_RATE = 0.5f;
+    private float chunkUpdateTimer = 0.0f;
 
+    // Measurements
     private float ramUsage = 0.0f;
     private float vramUsage = 0.0f;
+    #endregion Statistics
 
+    #region UserInterface
     private Frame _menu = null!;
-
     private Frame _perfMenu = null!;
 
     private bool perfMenuVisible = true;
-
     private bool doMaxResolution = false;
     private bool showMenu = false;
-
-    //prevents snapping when resizing window
     private bool _ignoreMouse = false;
+    #endregion UserInterface
 
 
     public Game() : base(
@@ -87,52 +99,7 @@ public class Game : GameWindow
     {
     }
 
-    public sealed class VramMonitor
-    {
-        private readonly List<PerformanceCounter> _dedicated = [];
-        private readonly string _pidPrefix = $"pid_{Environment.ProcessId}_";
-        private double _nextPoll;
-        private long _cachedBytes;
 
-        // Call once per frame; pass total elapsed seconds. Polls twice per second.
-        public long GetDedicatedBytes(double timeSeconds)
-        {
-            if (!OperatingSystem.IsWindows()) return -1;
-            if (timeSeconds < _nextPoll) return _cachedBytes;
-            _nextPoll = timeSeconds + 0.5;
-
-            try
-            {
-                // Instances only appear once the GPU is in use, so enumerate lazily.
-                if (_dedicated.Count == 0)
-                {
-                    var cat = new PerformanceCounterCategory("GPU Process Memory");
-                    foreach (string inst in cat.GetInstanceNames())
-                        if (inst.StartsWith(_pidPrefix))
-                            _dedicated.Add(new PerformanceCounter(
-                                "GPU Process Memory", "Dedicated Usage", inst, true));
-                }
-
-                long sum = 0;
-                foreach (var c in _dedicated)
-                    sum += (long)c.NextValue();
-
-                _cachedBytes = sum;
-            }
-            catch
-            {
-                _dedicated.Clear(); // instance vanished, re-enumerate next poll
-            }
-
-            return _cachedBytes;
-        }
-    }
-
-    long GetRamUsage()
-    {
-        using Process process = Process.GetCurrentProcess();
-        return process.WorkingSet64 / (1024 * 1024);
-    }
 
     protected override void OnLoad()
     {
@@ -144,100 +111,38 @@ public class Game : GameWindow
 
         InitTextRendering(ClientSize.X, ClientSize.Y);
         ImageRenderer.Init(ClientSize.X, ClientSize.Y);
-        ramUsage = GetRamUsage();
+        ramUsage = PerfMonitors.GetRamUsage();
         vramUsage = _vram.GetDedicatedBytes(0);
 
-        _camera = new Camera(new Vector3(3, 2, 4), Vector3.Zero);
+        _camera = new Camera(new Vector3(3, 15, 4), Vector3.Zero);
         CursorState = CursorState.Grabbed;
 
         GL.Enable(EnableCap.DepthTest);
 
-        _shader = new Shader(
-            File.ReadAllText("Shaders/main.vert"),
-            File.ReadAllText("Shaders/main.frag"));
-
-        _foliageShader = new Shader(
-            File.ReadAllText("Shaders/foliage.vert"),
-            File.ReadAllText("Shaders/foliage.frag"));
+        _shader = new Shader("Shaders/main.vert", "Shaders/main.frag");
+        _foliageShader = new Shader("Shaders/foliage.vert", "Shaders/foliage.frag");
+        _shadowShader = new Shader("Shaders/shadow.vert", "Shaders/shadow.frag");
+        _skyShader = new Shader("Shaders/sky.vert", "Shaders/sky.frag");
 
         _atlas = new TextureAtlas(TextureNames.DiffuseFolder, TextureNames.Names);
-        // The normal atlas uses the dedicated 256x256 normal texture for every slot.
         // this needs to be changed to autogenerrate normals
-        _normalAtlas = new TextureAtlas(
-            TextureNames.NormalFolder,
-            TextureNames.Names,
-            TextureNames.NormalNames,
-            256);
+        _normalAtlas = new TextureAtlas(TextureNames.NormalFolder, TextureNames.Names, TextureNames.NormalNames, 256);
 
         Models.Initialize();
-
-        Stopwatch sw = Stopwatch.StartNew();
-
-        // firs paralell pass; gen chunks
-        Parallel.For(0, WorldChunks, x =>
-        {
-            for (int z = 0; z < WorldChunks; z++)
-                for (int y = 0; y < 3; y++)
-                {
-                    Chunk c = new Chunk(new Vector3i(x * Chunk.Size, y * Chunk.Size, z * Chunk.Size));
-                    c.Generate();
-                    _chunks[new Vector3i(x, y, z)] = c;
-                }
-        });
-
-        // second parallel pass; overflow
-        Parallel.ForEach(_chunks.Values, c =>
-        {
-            // overflow blocks generated in first pass
-            c.ApplyOverflow(_chunks);
-        });
-
-        // third parallel pass; mesh gen
-        Stopwatch swmesh = Stopwatch.StartNew();
-        Parallel.ForEach(_chunks.Values, c =>
-        {
-            c.CreateMesh(_chunks);
-        });
-
-
-        // fourth pass; upload meshes to gpu, add to scene
-        foreach (var c in _chunks.Values)
-        {
-            c.ApplyMesh();
-            _sceneObjects.Add(c.mesh!);
-
-            if (c.foliageMesh != null)
-                _sceneObjects.Add(c.foliageMesh);
-        }
-        swmesh.Stop();
-
-        totalGenerationTime = sw.Elapsed.TotalMilliseconds;
-        sw.Stop();
-
-        Console.WriteLine(swmesh.Elapsed.TotalMilliseconds);
-
-        // --- shadow setup (world is static, so the map is rendered once) ---
-        _shadowShader = new Shader(
-            File.ReadAllText("Shaders/shadow.vert"),
-            File.ReadAllText("Shaders/shadow.frag"));
+        WorldPregeneration.Pregenerate();
 
         _shadow = new ShadowMap(ShadowMapSize);
-
-        _skyShader = new Shader(
-            File.ReadAllText("Shaders/sky.vert"),
-            File.ReadAllText("Shaders/sky.frag"));
 
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
         _skyVao = GL.GenVertexArray();
 
-        // maybe lowering this can help in needing less resolution for the shadowmap
         float worldW = WorldChunks * Chunk.Size;
         _lightSpace = BuildLightSpaceFit(
             _lightDir,
             new Vector3(0, 0, 0),
-            new Vector3(worldW, WorldHeight, worldW),
+            new Vector3(worldW, WORLD_HEIGHT, worldW),
             ShadowMapSize,
             out _texelWorld);
 
@@ -317,17 +222,13 @@ public class Game : GameWindow
                         new Label("-    GAME DATA    -"),
                         new Label($"Screen : {ClientSize.X} x {ClientSize.Y}", "Screen"),
                         new Label($"GPU : {SystemInfo.gpuRenderer}"),
-                        new Label($"Camera Position: {_camera.Position}"),
+                        new Label($"Camera Position: {_camera.Position}", "CameraPosition"),
                     }
                 }
                 
             },
 
         };
-
-        //_chunks[new Vector3i(0, 1, 0)].Unload();
-
-        RenderShadowMap();
     }
 
     static Matrix4 BuildLightSpaceFit(
@@ -441,9 +342,6 @@ public class Game : GameWindow
     {
         base.OnUpdateFrame(e);
 
-        //if (KeyboardState.IsKeyDown(Keys.Escape))
-            //Close();
-
         if (!IsFocused)
             return;
 
@@ -461,15 +359,11 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.Space)) move += Vector3.UnitY;
 
         if (KeyboardState.IsKeyPressed(Keys.F2))
-        {
             _wireframe = !_wireframe;
             GL.PolygonMode(TriangleFace.FrontAndBack, _wireframe ? PolygonMode.Line : PolygonMode.Fill);
-        }
 
         if(KeyboardState.IsKeyPressed(Keys.F1))
-        {
             perfMenuVisible = !perfMenuVisible;
-        }
 
         if(KeyboardState.IsKeyPressed(Keys.F11))
         {
@@ -496,15 +390,10 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyPressed(Keys.Escape))
         {
             showMenu = !showMenu;
-
             if (showMenu)
-            {
                 CursorState = CursorState.Normal;
-            }
             else
-            {
                 CursorState = CursorState.Grabbed;
-            }
 
         }
 
@@ -517,63 +406,13 @@ public class Game : GameWindow
         if(!showMenu)
             _camera.Look(MouseState.Delta);
 
-        // generate sorrounding terrain
-        Vector3i posChunk = new Vector3i(
-            (int)MathF.Floor(_camera.Position.X / Chunk.Size),
-            (int)MathF.Floor(_camera.Position.Y / Chunk.Size),
-            (int)MathF.Floor(_camera.Position.Z / Chunk.Size)
-        );
+        chunkUpdateTimer += (float)e.Time;
 
-        // implement neighbor updates
-        for (int x = posChunk.X - 3; x <= posChunk.X + 3; x++)
+        if (chunkUpdateTimer >= CHUNK_UPDATE_RATE)
         {
-            for (int y = 0; y < 3; y++)
-            {
-                for (int z = posChunk.Z - 3; z <= posChunk.Z + 3; z++)
-                {
-                    Vector3i targetPos = new Vector3i(x, y, z);
-                    if (_chunks.ContainsKey(targetPos))
-                        continue;
-                    _chunkGenerateQueue[targetPos] = true;
-                }
-            }
+            chunkUpdateTimer = 0;
+            DynamicChunks.HandleChunks();
         }
-
-
-        List<Chunk> newChunks = new();
-        // 1st pass
-        Parallel.ForEach(_chunkGenerateQueue.Keys.ToArray(), pos =>
-        {
-            Chunk c = new Chunk(pos * Chunk.Size);
-
-            c.Generate();
-            _chunks[pos] = c;
-            newChunks.Add(c);
-        });
-
-        Parallel.ForEach(newChunks, c =>
-        {
-            c.ApplyOverflow(_chunks);
-        });
-
-        Parallel.ForEach(newChunks, c =>
-        {
-            c.CreateMesh(_chunks);
-        });
-
-        foreach (var c in newChunks)
-        {
-            c.ApplyMesh();
-
-            _sceneObjects.Add(c.mesh!);
-
-            if (c.foliageMesh != null)
-                _sceneObjects.Add(c.foliageMesh);
-
-            _chunkGenerateQueue.Remove(c.Position / Chunk.Size, out _);
-        }
-
-
     }
 
     static private int countFrame = 0;
@@ -598,7 +437,7 @@ public class Game : GameWindow
             _lightSpace = BuildLightSpaceFit(
                 _lightDir,
                 _camera.Position,
-                new Vector3(128, WorldHeight, 128),
+                new Vector3(128, WORLD_HEIGHT, 128),
                 ShadowMapSize,
                 out _texelWorld);
 
@@ -610,7 +449,7 @@ public class Game : GameWindow
         if(infoTimer >= 1.0 / INFO_TIMER_RATE)
         {
             infoTimer = 0;
-            ramUsage = GetRamUsage();
+            ramUsage = PerfMonitors.GetRamUsage();
             vramUsage = _vram.GetDedicatedBytes(_time);
         }
 
@@ -635,8 +474,8 @@ public class Game : GameWindow
         Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
             MathHelper.DegreesToRadians(70f),
             Size.X / (float)Math.Max(Size.Y, 1),
-            0.1f,
-            1000f);
+            0.1f, // near plane
+            1000f); // far plane
 
         GL.Disable(EnableCap.DepthTest);
         GL.DepthMask(false);
@@ -781,6 +620,9 @@ public class Game : GameWindow
             var screen = _perfMenu.Find("Screen") as Label;
             screen?.Text = $"Screen    : {ClientSize.X} x {ClientSize.Y}";
 
+            var camPos = _perfMenu.Find("CameraPosition") as Label;
+            camPos?.Text = $"Camera Position: {_camera.Position}";
+
             Ui.RenderScreen(_perfMenu);
         }
 
@@ -788,6 +630,8 @@ public class Game : GameWindow
         {
             Ui.RenderScreen(_menu);
         }
+
+        GameWorld.Heartbeat((float)e.Time);
 
         UiRenderQueue.Flush();
 
@@ -808,108 +652,5 @@ public class Game : GameWindow
         _foliageShader.Dispose();
         DisposeText();
         base.OnUnload();
-    }
-}
-
-class Shader : IDisposable
-{
-    private readonly int _program;
-
-    public Shader(string vertexSource, string fragmentSource)
-    {
-        int vertex = Compile(ShaderType.VertexShader, vertexSource);
-        int fragment = Compile(ShaderType.FragmentShader, fragmentSource);
-
-        _program = GL.CreateProgram();
-        GL.AttachShader(_program, vertex);
-        GL.AttachShader(_program, fragment);
-        GL.LinkProgram(_program);
-
-        GL.GetProgram(_program, GetProgramParameterName.LinkStatus, out int success);
-
-        if (success == 0)
-            throw new Exception(GL.GetProgramInfoLog(_program));
-
-        GL.DetachShader(_program, vertex);
-        GL.DetachShader(_program, fragment);
-        GL.DeleteShader(vertex);
-        GL.DeleteShader(fragment);
-    }
-
-    private static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type);
-        GL.ShaderSource(shader, source);
-        GL.CompileShader(shader);
-
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int success);
-
-        if (success == 0)
-            throw new Exception(GL.GetShaderInfoLog(shader));
-
-        return shader;
-    }
-
-    public void Use() => GL.UseProgram(_program);
-
-    public void SetMatrix4(string name, Matrix4 matrix)
-    {
-        GL.UniformMatrix4(GL.GetUniformLocation(_program, name), false, ref matrix);
-    }
-
-    public void SetVector3(string name, Vector3 v) =>
-        GL.Uniform3(GL.GetUniformLocation(_program, name), v);
-
-    public void SetFloat(string name, float v) =>
-        GL.Uniform1(GL.GetUniformLocation(_program, name), v);
-
-    public void SetInt(string name, int value) =>
-        GL.Uniform1(GL.GetUniformLocation(_program, name), value);
-
-    public void Dispose() => GL.DeleteProgram(_program);
-}
-
-class ShadowMap : IDisposable
-{
-    public readonly int Size;
-    public readonly int Fbo;
-    public readonly int Texture;
-
-    public ShadowMap(int size)
-    {
-        Size = size;
-
-        Texture = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, Texture);
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent32f,
-            size, size, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
-
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToBorder);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToBorder);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBorderColor, new float[] { 1f, 1f, 1f, 1f });
-
-        // makes sampler2DShadow do the depth comparison in hardware
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRefToTexture);
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (int)DepthFunction.Lequal);
-
-        Fbo = GL.GenFramebuffer();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, Fbo);
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
-            TextureTarget.Texture2D, Texture, 0);
-        GL.DrawBuffer(DrawBufferMode.None);   // depth only
-        GL.ReadBuffer(ReadBufferMode.None);
-
-        if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
-            throw new Exception("Shadow map framebuffer incomplete");
-
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-    }
-
-    public void Dispose()
-    {
-        GL.DeleteFramebuffer(Fbo);
-        GL.DeleteTexture(Texture);
     }
 }

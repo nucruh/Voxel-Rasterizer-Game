@@ -1,4 +1,5 @@
-﻿using OpenTK.Graphics.OpenGL;
+﻿#pragma warning disable CA1416
+using OpenTK.Graphics.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Drawing;

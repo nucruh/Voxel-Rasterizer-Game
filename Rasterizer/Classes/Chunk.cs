@@ -21,7 +21,7 @@ public class Chunk
     public Vector3i Position;
     public const int Size = 32;
     public bool Active = true;
-    public bool IsEmpty;
+    public bool wasRecalculated = false;
     public Mesh? mesh;
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
@@ -38,7 +38,6 @@ public class Chunk
     public Chunk(Vector3i position)
     {
         Position = position;
-        IsEmpty = false;
     }
 
     const ushort AIR = 0, STONE = 3, GRASS = 2, GRASS_CARD = 64511, DIRT = 1;
