@@ -330,26 +330,41 @@ public class Game : GameWindow
         RenderShadowMap();
     }
 
-    static Matrix4 BuildLightSpaceFit(Vector3 lightDir, Vector3 boundsMin, Vector3 boundsMax, int mapSize, out float texelWorld)
+    static Matrix4 BuildLightSpaceFit(
+        Vector3 lightDir,
+        Vector3 cameraPosition,
+        Vector3 boundsSize,
+        int mapSize,
+        out float texelWorld)
     {
-        Vector3 center = (boundsMin + boundsMax) * 0.5f;
+        Vector3 center = cameraPosition;
+
         Vector3 up = MathF.Abs(lightDir.Y) > 0.99f ? Vector3.UnitZ : Vector3.UnitY;
+
         Matrix4 view = Matrix4.LookAt(center - lightDir, center, up);
 
-        Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
+        Vector3 halfSize = boundsSize * 0.5f;
+
+        Vector3 boundsMin = center - halfSize;
+        Vector3 boundsMax = center + halfSize;
+
+        Vector3 lo = new(float.MaxValue);
+        Vector3 hi = new(float.MinValue);
+
         for (int i = 0; i < 8; i++)
         {
             Vector3 corner = new(
                 (i & 1) == 0 ? boundsMin.X : boundsMax.X,
                 (i & 2) == 0 ? boundsMin.Y : boundsMax.Y,
-                (i & 4) == 0 ? boundsMin.Z : boundsMax.Z);
+                (i & 4) == 0 ? boundsMin.Z : boundsMax.Z
+            );
 
             Vector3 v = Vector3.TransformPosition(corner, view);
+
             lo = Vector3.ComponentMin(lo, v);
             hi = Vector3.ComponentMax(hi, v);
         }
 
-        // view space looks down -Z, so near/far come from the negated z extents
         float pad = 2f;
 
         texelWorld = MathF.Max(hi.X - lo.X, hi.Y - lo.Y) / mapSize;
@@ -510,11 +525,11 @@ public class Game : GameWindow
         );
 
         // implement neighbor updates
-        for (int x = posChunk.X - 1; x <= posChunk.X + 1; x++)
+        for (int x = posChunk.X - 3; x <= posChunk.X + 3; x++)
         {
             for (int y = 0; y < 3; y++)
             {
-                for (int z = posChunk.Z - 1; z <= posChunk.Z + 1; z++)
+                for (int z = posChunk.Z - 3; z <= posChunk.Z + 3; z++)
                 {
                     Vector3i targetPos = new Vector3i(x, y, z);
                     if (_chunks.ContainsKey(targetPos))
@@ -524,15 +539,30 @@ public class Game : GameWindow
             }
         }
 
-        foreach (var pos in _chunkGenerateQueue.Keys.ToArray())
+
+        List<Chunk> newChunks = new();
+        // 1st pass
+        Parallel.ForEach(_chunkGenerateQueue.Keys.ToArray(), pos =>
         {
             Chunk c = new Chunk(pos * Chunk.Size);
 
             c.Generate();
             _chunks[pos] = c;
+            newChunks.Add(c);
+        });
 
+        Parallel.ForEach(newChunks, c =>
+        {
             c.ApplyOverflow(_chunks);
+        });
+
+        Parallel.ForEach(newChunks, c =>
+        {
             c.CreateMesh(_chunks);
+        });
+
+        foreach (var c in newChunks)
+        {
             c.ApplyMesh();
 
             _sceneObjects.Add(c.mesh!);
@@ -540,7 +570,7 @@ public class Game : GameWindow
             if (c.foliageMesh != null)
                 _sceneObjects.Add(c.foliageMesh);
 
-            _chunkGenerateQueue.Remove(pos, out _);
+            _chunkGenerateQueue.Remove(c.Position / Chunk.Size, out _);
         }
 
 
@@ -565,6 +595,13 @@ public class Game : GameWindow
         shadowTimer += (float)e.Time;
         if(shadowTimer >= 1.0 / SHADOW_MAP_RATE)
         {
+            _lightSpace = BuildLightSpaceFit(
+                _lightDir,
+                _camera.Position,
+                new Vector3(128, WorldHeight, 128),
+                ShadowMapSize,
+                out _texelWorld);
+
             shadowTimer = 0;
             RenderShadowMap();
         }
