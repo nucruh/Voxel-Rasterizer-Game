@@ -497,7 +497,7 @@ public class Chunk
         GreedyMesh(vertices, neighborChunks);
 
         sw.Stop();
-        Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
+        //Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
     }
 
     public void ApplyMesh()

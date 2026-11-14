@@ -4,6 +4,7 @@ public struct RaycastHit
 {
     public Vector3i BlockPosition;
     public Vector3i Normal;
+    public Vector3 Position;
     public ushort BlockId;
     public float Distance;
 }
@@ -14,6 +15,7 @@ public static class VoxelRaycaster
         Vector3 origin,
         Vector3 direction,
         float maxDistance,
+        bool ignoreNonSolid,
         out RaycastHit hit)
     {
         hit = default;
@@ -59,12 +61,15 @@ public static class VoxelRaycaster
         {
             ushort id = GetBlock(block.X, block.Y, block.Z);
 
-            if (id != 0)
+            bool ignored = ignoreNonSolid && id != 0 && !BlockRegistry.Blocks[id].Solid;
+
+            if (id != 0 && !ignored)
             {
                 hit = new RaycastHit
                 {
                     BlockPosition = block,
                     Normal = normal,
+                    Position = origin + direction * distance,
                     BlockId = id,
                     Distance = distance
                 };

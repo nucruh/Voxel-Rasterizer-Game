@@ -45,6 +45,7 @@ public class Game : GameWindow
 
     #region Camera and Scene
     public static Camera _camera = null!;
+    public static KeyboardState _keyboardState = null!;
 
     public static List<Mesh> _sceneObjects = new List<Mesh>();
     public static ConcurrentDictionary<Vector3i, Chunk> _chunks = new();
@@ -124,7 +125,7 @@ public class Game : GameWindow
         ramUsage = PerfMonitors.GetRamUsage();
         vramUsage = _vram.GetDedicatedBytes(0);
 
-        _camera = new Camera(new Vector3(3, 15, 4), Vector3.Zero);
+        _camera = new Camera(new Vector3(3, 40, 4), Vector3.Zero);
         CursorState = CursorState.Grabbed;
 
         GL.Enable(EnableCap.DepthTest);
@@ -365,6 +366,10 @@ public class Game : GameWindow
             return;
 
         float dt = (float)e.Time;
+
+        _keyboardState = KeyboardState;
+
+        /*
         float speed = _camera.Speed * (KeyboardState.IsKeyDown(Keys.LeftControl) ? 3f : 1f);
         speed = speed * (KeyboardState.IsKeyDown(Keys.LeftShift) ? 0.1f : 1f);
 
@@ -376,6 +381,7 @@ public class Game : GameWindow
         if (KeyboardState.IsKeyDown(Keys.D)) move += _camera.Right;
         if (KeyboardState.IsKeyDown(Keys.A)) move -= _camera.Right;
         if (KeyboardState.IsKeyDown(Keys.Space)) move += Vector3.UnitY;
+        */
 
         if (KeyboardState.IsKeyPressed(Keys.F2))
             _wireframe = !_wireframe;
@@ -403,8 +409,8 @@ public class Game : GameWindow
             }
         }
 
-        if (move != Vector3.Zero)
-            _camera.Position += Vector3.Normalize(move) * speed * dt;
+        /*if (move != Vector3.Zero)
+            _camera.Position += Vector3.Normalize(move) * speed * dt; */
 
         if (KeyboardState.IsKeyPressed(Keys.Escape))
         {
@@ -643,7 +649,7 @@ public class Game : GameWindow
             camPos?.Text = $"Camera Position: {_camera.Position}";
 
             RaycastHit hit;
-            VoxelRaycaster.Raycast(_camera.Position, _camera.Front, 15f, out hit);
+            VoxelRaycaster.Raycast(_camera.Position, _camera.Front, 15f, false, out hit);
 
             var blockName = _perfMenu.Find("BlockName") as Label;
             blockName?.Text = $"Block name: {(BlockRegistry.Blocks.TryGetValue(hit.BlockId, out var block) ? block?.DisplayName : "null") ?? "null"}";
