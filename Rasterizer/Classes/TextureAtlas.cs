@@ -114,5 +114,39 @@ public class TextureAtlas : IDisposable
         GL.BindTexture(TextureTarget.Texture2D, _handle);
     }
 
+    // single image loading constructor (for non-atlas textures)
+    public TextureAtlas(string imagePath)
+    {
+        using var stream = File.OpenRead(imagePath);
+        var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+
+        _width = image.Width;
+        _height = image.Height;
+        _tile = 0;
+        _cols = 1;
+        _names = Array.Empty<string>();
+        _nameToId = new Dictionary<string, int>();
+
+        _handle = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, _handle);
+
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+        GL.TexImage2D(
+            TextureTarget.Texture2D,
+            0,
+            PixelInternalFormat.Rgba,
+            image.Width,
+            image.Height,
+            0,
+            PixelFormat.Rgba,
+            PixelType.UnsignedByte,
+            image.Data
+        );
+    }
+
     public void Dispose() => GL.DeleteTexture(_handle);
 }

@@ -6,6 +6,7 @@ public static class TextureNames
 
     public static readonly string DiffuseFolder = ResolveFolder("Diffuse");
     public static readonly string NormalFolder = ResolveFolder("Normal");
+    public static readonly string TintFolder = ResolveFolder("Tint");
     public static readonly string RoughnessFolder = Path.Combine(TextureRoot, "Roughness");
 
     public static readonly string[] Names = Directory
@@ -21,6 +22,14 @@ public static class TextureNames
             : File.Exists(Path.Combine(NormalFolder, x + "_normal.png"))
                 ? x + "_normal"
                 : "normal")
+        .ToArray();
+
+    public static readonly string[] TintNames = Names
+        .Select(x => File.Exists(Path.Combine(TintFolder, x + ".png"))
+            ? x
+            : File.Exists(Path.Combine(TintFolder, x + "_tint.png"))
+                ? x + "_tint"
+                : "tint")
         .ToArray();
 
     private static string ResolveFolder(string category)

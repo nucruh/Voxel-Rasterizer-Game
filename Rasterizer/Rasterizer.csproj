@@ -35,6 +35,9 @@
     <None Update="Images\Thumbnail.jpg">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Images\WhittakerAtlas.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Shaders\image.frag">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -91,6 +94,7 @@
     <Folder Include="Textures\Diffuse\" />
     <Folder Include="Textures\Roughness\" />
     <Folder Include="Textures\Normal\" />
+    <Folder Include="Textures\Tint\" />
   </ItemGroup>
 
 </Project>

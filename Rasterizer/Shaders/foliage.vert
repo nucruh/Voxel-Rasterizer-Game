@@ -16,6 +16,7 @@ out vec2 texCoord;
 out vec3 vWorldPos;
 out vec3 vTangent;
 out float vTangentHandedness;
+out float _windWeight;
 
 void main()
 {
@@ -49,4 +50,5 @@ void main()
 
     vertexNormal = aNormal;
     texCoord = aUV;
+    _windWeight = windWeight;
 }

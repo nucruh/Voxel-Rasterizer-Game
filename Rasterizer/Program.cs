@@ -27,6 +27,8 @@ public class Game : GameWindow
     // Atlases
     public static TextureAtlas _atlas = null!;
     public static TextureAtlas _normalAtlas = null!;
+    public static TextureAtlas _tintAtlas = null!;
+    public static TextureAtlas _whittakerAtlas = null!;
 
     // Shadows
     private const int ShadowMapSize = 4096;
@@ -138,6 +140,8 @@ public class Game : GameWindow
         _atlas = new TextureAtlas(TextureNames.DiffuseFolder, TextureNames.Names);
         // this needs to be changed to autogenerrate normals
         _normalAtlas = new TextureAtlas(TextureNames.NormalFolder, TextureNames.Names, TextureNames.NormalNames, 256);
+        _tintAtlas = new TextureAtlas(TextureNames.TintFolder, TextureNames.Names, TextureNames.TintNames, 32);
+        _whittakerAtlas = new TextureAtlas("Images/WhittakerAtlas.png");
 
         Models.Initialize();
         WorldPregeneration.Pregenerate();
@@ -521,6 +525,11 @@ public class Game : GameWindow
         GL.DepthMask(true);
         GL.Enable(EnableCap.DepthTest);
 
+        _lightDir = Vector3.Transform(
+            _lightDir,
+            Quaternion.FromAxisAngle(Vector3.UnitX, 1f * (float)e.Time)
+        );
+
         // Render regular meshes
         _shader.Use();
 
@@ -548,6 +557,14 @@ public class Game : GameWindow
         GL.ActiveTexture(TextureUnit.Texture2);
         _normalAtlas.Bind(TextureUnit.Texture2);
         _shader.SetInt("normalAtlas", 2);
+
+        GL.ActiveTexture(TextureUnit.Texture3);
+        _tintAtlas.Bind(TextureUnit.Texture3);
+        _shader.SetInt("tintAtlas", 3);
+
+        GL.ActiveTexture(TextureUnit.Texture4);
+        _whittakerAtlas.Bind(TextureUnit.Texture4);
+        _shader.SetInt("whittakerAtlas", 4);
 
         cameraFrustum.Update(view * projection);
         foreach (var mesh in _sceneObjects)
@@ -593,6 +610,14 @@ public class Game : GameWindow
         GL.ActiveTexture(TextureUnit.Texture2);
         _normalAtlas.Bind(TextureUnit.Texture2);
         _foliageShader.SetInt("normalAtlas", 2);
+
+        GL.ActiveTexture(TextureUnit.Texture3);
+        _tintAtlas.Bind(TextureUnit.Texture3);
+        _foliageShader.SetInt("tintAtlas", 3);
+
+        GL.ActiveTexture(TextureUnit.Texture4);
+        _whittakerAtlas.Bind(TextureUnit.Texture4);
+        _foliageShader.SetInt("whittakerAtlas", 4);
 
         GL.Disable(EnableCap.CullFace);
 
@@ -675,6 +700,8 @@ public class Game : GameWindow
             mesh.Dispose();
         _atlas.Dispose();
         _normalAtlas.Dispose();
+        _tintAtlas.Dispose();
+        _whittakerAtlas.Dispose();
         _shader.Dispose();
         _shadow.Dispose();
         _shadowShader.Dispose();
