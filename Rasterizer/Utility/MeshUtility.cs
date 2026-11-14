@@ -124,9 +124,9 @@ public static class MeshUtility
         }
     }
 
-    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, int texture, bool skipRecenter = false, bool heightPaint = false, bool upNormal = false, float minWeight = 0.0f, float maxWeight = 0.0f, float size = 1.0f)
+    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, ushort texture, bool skipRecenter = false, bool heightPaint = false, bool upNormal = false, float minWeight = 0.0f, float maxWeight = 0.0f, float size = 1.0f)
     {
-        AddQuad(v, look, offset, TextureNames.Blocks[texture].Name, skipRecenter, heightPaint, upNormal, minWeight, maxWeight, size);
+        AddQuad(v, look, offset, BlockRegistry.Blocks[texture].Textures[0], skipRecenter, heightPaint, upNormal, minWeight, maxWeight, size);
     }
 
     public static void AddModel(

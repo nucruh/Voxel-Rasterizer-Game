@@ -63,24 +63,39 @@ public class TextureAtlas : IDisposable
 
     public Vector2 Map(string name, Vector2 local, Vector3? look = null)
     {
+        return MapTexture(name, local, look, false);
+    }
+
+    public Vector2 MapNormal(string name, Vector2 local, Vector3? look = null)
+    {
+        return MapTexture(name, local, look, true);
+    }
+
+    private Vector2 MapTexture(string name, Vector2 local, Vector3? look, bool normal)
+    {
         string textureName = name;
 
         if (look.HasValue)
         {
-            Vector3 normal = look.Value;
+            Vector3 n = look.Value;
 
-            int face = normal.X > 0.5f ? 0 :
-                       normal.X < -0.5f ? 1 :
-                       normal.Y > 0.5f ? 2 :
-                       normal.Y < -0.5f ? 3 :
-                       normal.Z > 0.5f ? 4 : 5;
+            int face = n.X > 0.5f ? 0 :
+                       n.X < -0.5f ? 1 :
+                       n.Y > 0.5f ? 2 :
+                       n.Y < -0.5f ? 3 :
+                       n.Z > 0.5f ? 4 : 5;
 
-            textureName = TextureNames.Blocks[TextureNames.NameToId[name]].Textures[face];
+            var block = BlockRegistry.Blocks[BlockRegistry.NameToId[name]];
+
+            textureName = normal
+                ? block.NormalMaps[face]
+                : block.Textures[face];
         }
 
         int id = Id(textureName);
 
         float e = 0.01f / _tile;
+
         local = new Vector2(
             e + local.X * (1 - 2 * e),
             e + local.Y * (1 - 2 * e));

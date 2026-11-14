@@ -1,49 +1,88 @@
-﻿public class BlockDefinition
+﻿public enum ItemSize
 {
-    public int Id;
+    Tiny, // 64
+    Small, // 32
+    Normal, // 16
+    Medium, // 8
+    Large, // 4
+    Huge // 1
+}
+
+public class BlockDefinition
+{
+    public ushort Id;
     public string Name;
+    public string DisplayName;
+    public string Description;
+    public ItemSize ItemSize;
 
-    // Texture atlas names, ordered by face.
     public string[] Textures;
-
-    // Normal map names, ordered by face.
     public string[] NormalMaps;
 
-    public bool IsTransparent;
-    public bool IsFoliage;
+    public bool Solid;
+    public bool Foliage;
+    public bool Transparent;
 
-    public BlockDefinition(
-        int id,
-        string name,
-        string texture,
-        bool isTransparent = false,
-        bool isFoliage = false)
+    public byte HardnessLevel;
+    public string[] ModelNames;
+
+    public HashSet<string> Tags = [];
+
+    public BlockDefinition(BlockJson json)
     {
-        Id = id;
-        Name = name;
+        Id = json.Id;
+        Name = json.Name;
+        DisplayName = json.DisplayName;
+        Description = json.Description;
+        ItemSize = Enum.Parse<ItemSize>(json.ItemSize, true);
 
-        Textures = Enumerable.Repeat(texture, 6).ToArray();
-        NormalMaps = Enumerable.Repeat("normal", 6).ToArray();
+        Textures = ResolveFaces(json.Albedo);
+        NormalMaps = ResolveFaces(json.Normal);
 
-        IsTransparent = isTransparent;
-        IsFoliage = isFoliage;
+        Solid = json.Solid;
+        Foliage = json.Foliage;
+        Transparent = json.Transparent;
+
+        HardnessLevel = json.HardnessLevel;
+        ModelNames = json.Model ?? [];
+
+        Tags = json.Tags.ToHashSet();
     }
 
-    public BlockDefinition(
-        int id,
-        string name,
-        string[] textures,
-        string[]? normalMaps = null,
-        bool isTransparent = false,
-        bool isFoliage = false)
+    private static string[] ResolveFaces(Dictionary<string, string> textures)
     {
-        Id = id;
-        Name = name;
+        string all = textures.GetValueOrDefault("all", "normal");
+        string side = textures.GetValueOrDefault("side", all);
 
-        Textures = textures;
-        NormalMaps = normalMaps ?? Enumerable.Repeat("normal", 6).ToArray();
-
-        IsTransparent = isTransparent;
-        IsFoliage = isFoliage;
+        return
+        [
+            textures.GetValueOrDefault("east", side),
+            textures.GetValueOrDefault("west", side),
+            textures.GetValueOrDefault("top", all),
+            textures.GetValueOrDefault("bottom", all),
+            textures.GetValueOrDefault("south", side),
+            textures.GetValueOrDefault("north", side)
+        ];
     }
+}
+
+public class BlockJson
+{
+    public ushort Id { get; set; }
+    public string Name { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string ItemSize { get; set; } = "normal";
+
+    public Dictionary<string, string> Albedo { get; set; } = [];
+    public Dictionary<string, string> Normal { get; set; } = [];
+
+    public bool Solid { get; set; }
+    public bool Foliage { get; set; }
+    public bool Transparent { get; set; }
+
+    public byte HardnessLevel { get; set; }
+    public string[]? Model { get; set; }
+
+    public string[] Tags { get; set; } = [];
 }

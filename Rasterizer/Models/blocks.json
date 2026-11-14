@@ -1,0 +1,266 @@
+﻿[
+    {
+        "id": 1,
+        "name": "dirt_loam",
+        "displayName": "Loam Dirt",
+        "description": "A type of dirt buddy",
+        "itemSize": "medium",
+
+        "albedo": {
+            "top": "dirt_loam",
+            "side": "dirt_loam",
+            "bottom": "dirt_loam"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": true,
+        "foliage": false,
+        "transparent": false,
+        
+        "hardnessLevel": 1,
+        "model": null,
+        "tags": ["grass_spreadable"]
+    },
+
+    {
+        "id": 2,
+        "name": "grass_loam",
+        "displayName": "Loam Grass",
+        "description": "A type of grass",
+        "itemSize": "medium",
+
+        "albedo": {
+            "top": "grass_top_loam",
+            "side": "grass_side_loam",
+            "bottom": "dirt_loam"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": true,
+        "foliage": false,
+        "transparent": false,
+        
+        "hardnessLevel": 1,
+        "model": null,
+        "tags": []
+    },
+
+    {
+        "id": 3,
+        "name": "andesite_stone",
+        "displayName": "Andesite Stone",
+        "description": "A type of stone",
+        "itemSize": "medium",
+
+        "albedo": {
+            "top": "andesite_stone",
+            "side": "andesite_stone",
+            "bottom": "andesite_stone"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": true,
+        "foliage": false,
+        "transparent": false,
+        
+        "hardnessLevel": 5,
+        "model": null,
+        "tags": []
+    },
+
+    {
+        "id": 4,
+        "name": "oak_log",
+        "displayName": "Oak Log",
+        "description": "A type of log",
+        "itemSize": "medium",
+
+        "albedo": {
+            "top": "oak_log",
+            "side": "oak_log",
+            "bottom": "oak_log"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": true,
+        "foliage": false,
+        "transparent": false,
+        
+        "hardnessLevel": 2,
+        "model": null,
+        "tags": []
+    },
+
+
+
+
+    {
+        "id": 64511,
+        "name": "grass_card",
+        "displayName": "Grass Card",
+        "description": "A type of grass card",
+        "itemSize": "small",
+
+        "albedo": {
+            "all": "grass_card"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": false,
+        "foliage": true,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": null,
+        "tags": ["replaceable"]
+    },
+
+    {
+        "id": 64512,
+        "name": "oak_leaf",
+        "displayName": "Oak Leaf",
+        "description": "A type of oak leaf",
+        "itemSize": "small",
+
+        "albedo": {
+            "all": "oak_leaf"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": false,
+        "foliage": true,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": null,
+        "tags": ["replaceable"]
+    },
+
+    {
+        "id": 64513,
+        "name": "short_grass_card",
+        "displayName": "Short Grass Card",
+        "description": "A type of short grass card",
+        "itemSize": "small",
+
+        "albedo": {
+            "all": "short_grass_card"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": false,
+        "foliage": true,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": null,
+        "tags": ["replaceable"]
+    },
+
+    {
+        "id": 64514,
+        "name": "dandelion",
+        "displayName": "Dandelion",
+        "description": "A type of dandelion",
+        "itemSize": "small",
+
+        "albedo": {
+            "all": "dandelion"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": false,
+        "foliage": true,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": null,
+        "tags": ["replaceable"]
+    },
+    {
+        "id": 64515,
+        "name": "fern",
+        "displayName": "Fern",
+        "description": "A type of fern",
+        "itemSize": "small",
+
+        "albedo": {
+            "all": "fern"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": false,
+        "foliage": true,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": null,
+        "tags": ["replaceable"]
+    },
+
+
+    {
+        "id": 64516,
+        "name": "andesite_pebble",
+        "displayName": "Andesite Pebble",
+        "description": "A type of andesite pebble",
+        "itemSize": "tiny",
+
+        "albedo": {
+            "all": "tbd_model"
+        },
+        "normal": {
+            "all": "tbd_model"
+        },
+
+        "solid": false,
+        "foliage": false,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": ["andesite_pebble_1"],
+        "tags": []
+    },
+
+    {
+        "id": 64517,
+        "name": "mushroom_porcini",
+        "displayName": "Porcini Mushroom",
+        "description": "A type of porcini mushroom",
+        "itemSize": "small",
+
+        "albedo": {
+            "all": "tbd_model"
+        },
+        "normal": {
+            "all": "tbd_model"
+        },
+
+        "solid": false,
+        "foliage": false,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": ["mushroom_porcini_1"],
+        "tags": []
+    }
+
+]

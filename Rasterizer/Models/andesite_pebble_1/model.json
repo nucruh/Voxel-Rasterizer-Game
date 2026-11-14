@@ -1,7 +1,6 @@
 {
     "name": "andesite_pebble_1",
     "blockId": 64516,
-    "isTransparent": false,
     "scale": [1.0, 1.0, 1.0],
     "origin": [0.0, 0.5, 0.0],
     "collision": false,

@@ -109,6 +109,16 @@ public class Game : GameWindow
         SystemInfo.gpuRenderer = GL.GetString(StringName.Renderer);
         SystemInfo.glslVersion = GL.GetString(StringName.ShadingLanguageVersion);
 
+        BlockRegistry.Load("Models/blocks.json");
+
+        BlockDefinition dirt = BlockRegistry.Blocks[1];
+
+        Console.WriteLine(dirt.Name);
+        Console.WriteLine(dirt.DisplayName);
+        Console.WriteLine(dirt.ItemSize);
+        Console.WriteLine(dirt.Textures[2]);
+        Console.WriteLine(dirt.Tags.Contains("grass_spreadable"));
+
         InitTextRendering(ClientSize.X, ClientSize.Y);
         ImageRenderer.Init(ClientSize.X, ClientSize.Y);
         ramUsage = PerfMonitors.GetRamUsage();
@@ -183,6 +193,15 @@ public class Game : GameWindow
                     Position = new UDim2(0.0f, 5, 0.0f, 5),
                     Alpha = 0.6f,
                     Color = new TextColor(15, 20, 28)
+                },
+
+                new Stack
+                {
+                    Position = new UDim2(0.5f, 10, 0.0f, 0),
+                    AnchorPoint = (0.5f, 0.0f),
+                    Children = {
+                        new Label("Block name: null", "BlockName"),
+                    },
                 },
 
                 new Stack
@@ -622,6 +641,12 @@ public class Game : GameWindow
 
             var camPos = _perfMenu.Find("CameraPosition") as Label;
             camPos?.Text = $"Camera Position: {_camera.Position}";
+
+            RaycastHit hit;
+            VoxelRaycaster.Raycast(_camera.Position, _camera.Front, 15f, out hit);
+
+            var blockName = _perfMenu.Find("BlockName") as Label;
+            blockName?.Text = $"Block name: {(BlockRegistry.Blocks.TryGetValue(hit.BlockId, out var block) ? block?.DisplayName : "null") ?? "null"}";
 
             Ui.RenderScreen(_perfMenu);
         }

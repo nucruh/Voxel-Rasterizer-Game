@@ -628,11 +628,11 @@ public class Chunk
                           int d, int u, int v, int dir, int su, int s, int i, int j,
                           int w, int h, Vector3 look, Vector4 tangentData)
     {
-        string tex = TextureNames.Blocks[type].Name;
+        string blockName = BlockRegistry.Blocks[type].Name;
 
         // atlas cell rect for this block face (assumes Map is linear in uv)
-        Vector2 min = atlas.Map(tex, new Vector2(0, 0), look);
-        Vector2 max = atlas.Map(tex, new Vector2(1, 1), look);
+        Vector2 min = atlas.Map(blockName, new Vector2(0, 0), look);
+        Vector2 max = atlas.Map(blockName, new Vector2(1, 1), look);
         Vector4 rect = new(min.X, min.Y, max.X - min.X, max.Y - min.Y);
 
         foreach (var (a, b) in QuadCorners)
