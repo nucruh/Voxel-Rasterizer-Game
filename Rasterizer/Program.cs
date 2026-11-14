@@ -22,6 +22,7 @@ public class Game : GameWindow
     private Shader _shadowShader = null!;
     private Shader _foliageShader = null!;
     private Shader _skyShader = null!;
+    private Shader _postProcessShader = null!;
 
 
     // Atlases
@@ -43,9 +44,15 @@ public class Game : GameWindow
 
     #region Bindings
     private int _skyVao;
+    private int _sceneFbo;
+    private int _sceneColor;
+    private int _sceneDepth;
     #endregion Bindings
 
     #region Camera and Scene
+    private const float NearPlane = 0.1f;
+    private const float FarPlane = 1000f;
+
     public static Camera _camera = null!;
     public static KeyboardState _keyboardState = null!;
 
@@ -97,7 +104,8 @@ public class Game : GameWindow
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
             Vsync = VSyncMode.On,
-            WindowBorder = WindowBorder.Hidden
+            WindowBorder = WindowBorder.Hidden,
+            NumberOfSamples = 0
         })
     {
     }
@@ -136,6 +144,7 @@ public class Game : GameWindow
         _foliageShader = new Shader("Shaders/foliage.vert", "Shaders/foliage.frag");
         _shadowShader = new Shader("Shaders/shadow.vert", "Shaders/shadow.frag");
         _skyShader = new Shader("Shaders/sky.vert", "Shaders/sky.frag");
+        _postProcessShader = new Shader("Shaders/postprocess.vert", "Shaders/postprocess.frag");
 
         _atlas = new TextureAtlas(TextureNames.DiffuseFolder, TextureNames.Names);
         // this needs to be changed to autogenerrate normals
@@ -150,6 +159,8 @@ public class Game : GameWindow
 
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
+        CreateSceneFramebuffer(ClientSize.X, ClientSize.Y);
 
         _skyVao = GL.GenVertexArray();
 
@@ -298,6 +309,50 @@ public class Game : GameWindow
         return view * proj;
     }
 
+    private void CreateSceneFramebuffer(int width, int height)
+    {
+        if (_sceneFbo != 0)
+        {
+            GL.DeleteFramebuffer(_sceneFbo);
+            GL.DeleteTexture(_sceneColor);
+            GL.DeleteTexture(_sceneDepth);
+        }
+
+        _sceneFbo = GL.GenFramebuffer();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _sceneFbo);
+
+        // Color texture
+        _sceneColor = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, _sceneColor);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, width, height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+        GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureMinFilter,(int)TextureMinFilter.Linear);
+        GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureMagFilter,(int)TextureMagFilter.Linear);
+        GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureWrapS,(int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureWrapT,(int)TextureWrapMode.ClampToEdge);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,TextureTarget.Texture2D,_sceneColor,0);
+
+        // Depth texture (sampled by the FXAA pass)
+        _sceneDepth = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, _sceneDepth);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent24,
+            width, height, 0, PixelFormat.DepthComponent, PixelType.UnsignedInt, IntPtr.Zero);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.None);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+            TextureTarget.Texture2D, _sceneDepth, 0);
+
+        if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) !=
+            FramebufferErrorCode.FramebufferComplete)
+        {
+            throw new Exception("Scene framebuffer is incomplete.");
+        }
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
+
     void RenderShadowMap()
     {
         GL.Viewport(0, 0, _shadow.Size, _shadow.Size);
@@ -356,6 +411,8 @@ public class Game : GameWindow
         base.OnResize(e);
         GL.Viewport(0, 0, e.Width, e.Height);
         ResizeText(e.Width, e.Height);
+        if (_sceneFbo != 0 && e.Width > 0 && e.Height > 0)
+            CreateSceneFramebuffer(e.Width, e.Height);
 
         CursorState = CursorState.Grabbed;
 
@@ -490,6 +547,9 @@ public class Game : GameWindow
             timeSinceLastFps = 0;
         }
 
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _sceneFbo);
+        GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
         _shader.Use();
@@ -503,8 +563,8 @@ public class Game : GameWindow
         Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
             MathHelper.DegreesToRadians(70f),
             Size.X / (float)Math.Max(Size.Y, 1),
-            0.1f, // near plane
-            1000f); // far plane
+            NearPlane,
+            FarPlane);
 
         GL.Disable(EnableCap.DepthTest);
         GL.DepthMask(false);
@@ -518,6 +578,7 @@ public class Game : GameWindow
 
         _skyShader.SetMatrix4("invProjection", Matrix4.Invert(projection));
         _skyShader.SetMatrix4("invView", Matrix4.Invert(view));
+        _skyShader.SetVector3("lightDir", _lightDir);
 
         GL.BindVertexArray(_skyVao);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
@@ -642,7 +703,43 @@ public class Game : GameWindow
                 
         }
 
+        // FXAA post-processing
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+
+        GL.Disable(EnableCap.DepthTest);
+        GL.Disable(EnableCap.CullFace);
+        GL.Disable(EnableCap.Blend);
+        GL.DepthMask(false);
+
+        _postProcessShader.Use();
+
+        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.BindTexture(TextureTarget.Texture2D, _sceneColor);
+
+        GL.ActiveTexture(TextureUnit.Texture1);
+        GL.BindTexture(TextureTarget.Texture2D, _sceneDepth);
+
+        _postProcessShader.SetInt("screenTexture", 0);
+        _postProcessShader.SetInt("depthTexture", 1);
+        _postProcessShader.SetFloat("inverseWidth", 1.0f / ClientSize.X);
+        _postProcessShader.SetFloat("inverseHeight", 1.0f / ClientSize.Y);
+        _postProcessShader.SetFloat("nearPlane", NearPlane);
+        _postProcessShader.SetFloat("farPlane", FarPlane);
+
+        GL.ActiveTexture(TextureUnit.Texture0);
+
+        GL.BindVertexArray(_skyVao);
+
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+
+        // Restore state for UI
+        GL.DepthMask(true);
+        GL.Enable(EnableCap.DepthTest);
+        GL.Enable(EnableCap.Blend);
         GL.Enable(EnableCap.CullFace);
+
+        //RenderHud(drawCalls);
 
         //RenderHud(drawCalls);
 
@@ -707,6 +804,11 @@ public class Game : GameWindow
         _shader.Dispose();
         _shadow.Dispose();
         _shadowShader.Dispose();
+        _postProcessShader.Dispose();
+
+        GL.DeleteFramebuffer(_sceneFbo);
+        GL.DeleteTexture(_sceneColor);
+        GL.DeleteTexture(_sceneDepth);
         GL.DeleteVertexArray(_skyVao);
         _skyShader.Dispose();
         _foliageShader.Dispose();

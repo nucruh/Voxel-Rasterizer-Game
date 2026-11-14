@@ -9,6 +9,7 @@ layout(location = 4) in float windWeight;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform vec3 uCamPos;
 uniform float time;
 
 out vec3 vertexNormal;
@@ -27,6 +28,7 @@ void main()
     // Per-instance variation
     float phase = dot(world.xz, vec2(0.1741, 0.1381));
 
+    // would be better to switch to a system where wind strength can be parsed into drawcall directly so no calculations needed
     // Layered wind
     float wind =
         sin(time * 1.2 + phase * 10.0) * 0.7 +
@@ -34,10 +36,11 @@ void main()
 
     // Stronger bending towards the tip
     float bend = height * height;
+    float distanceToCamera = distance(uCamPos, world.xyz);
+    float windFade = 1.0 - smoothstep(40.0, 120.0, distanceToCamera);
 
-    world.x += wind * 0.35 * bend * windWeight;
-    world.z += sin(time * 0.9 + phase + height * 2.0)
-             * 0.12 * bend * windWeight;
+    world.x += wind * 0.35 * bend * windWeight * windFade;
+    world.z += sin(time * 0.9 + phase + height * 2.0) * 0.12 * bend * windWeight * windFade;
 
     vWorldPos = world.xyz;
 
