@@ -525,10 +525,12 @@ public class Game : GameWindow
         GL.DepthMask(true);
         GL.Enable(EnableCap.DepthTest);
 
+        /*
         _lightDir = Vector3.Transform(
             _lightDir,
             Quaternion.FromAxisAngle(Vector3.UnitX, 1f * (float)e.Time)
         );
+        */
 
         // Render regular meshes
         _shader.Use();

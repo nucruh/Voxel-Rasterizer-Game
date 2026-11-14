@@ -106,19 +106,27 @@ vec3 ApplyAtmosphere(vec3 color, vec3 viewDir, float depth)
     vec3 sunDir = normalize(-lightDir);
     vec3 up = vec3(0.0, 1.0, 0.0);
 
+    // Sun elevation
+    float sunHeight = dot(sunDir, up);
+
+    // Horizon warmth
+    float sunset = 1.0 - smoothstep(0.0, 0.35, sunHeight);
+
+    // Atmospheric colors
+    vec3 rayleighColor = vec3(0.20, 0.42, 0.85);
+    vec3 sunsetColor = vec3(1.0, 0.38, 0.12);
+
+    vec3 atmosphereColor = mix(rayleighColor, sunsetColor, sunset);
+
     // Rayleigh phase function
     float cosTheta = dot(viewDir, sunDir);
     float rayleighPhase = 0.75 * (1.0 + cosTheta * cosTheta);
 
-    // Stronger scattering near the horizon
+    // Horizon scattering
     float horizon = 1.0 - abs(dot(viewDir, up));
     horizon = pow(horizon, 2.0);
 
-    // Atmospheric optical depth approximation
     float opticalDepth = 1.0 - exp(-depth * 0.0025);
-
-    // Approximate Rayleigh scattering color
-    vec3 rayleighColor = vec3(0.20, 0.42, 0.85);
 
     float scattering = opticalDepth
                      * (0.12 + horizon * 0.65)
@@ -126,7 +134,7 @@ vec3 ApplyAtmosphere(vec3 color, vec3 viewDir, float depth)
 
     scattering = clamp(scattering, 0.0, 0.65);
 
-    return mix(color, rayleighColor, scattering);
+    return mix(color, atmosphereColor, scattering);
 }
 
 float Hash(vec3 p)
