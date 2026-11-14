@@ -153,7 +153,7 @@ void main()
 
     color.rgb *= lighting;
     //color.rgb = ACESFilm(color.rgb, 0.0113);
-    color.rgb = ColorCorrection(color.rgb, 0.15, 0.95, 0.9, 0.2, 1.0);
+    color.rgb = ColorCorrection(color.rgb, 0.15, 0.95, 0.9, 0.0, 1.0);
     color.rgb = ApplyFog(color.rgb, depth);
     //color.rgb = vec3(direct_strength);
 
