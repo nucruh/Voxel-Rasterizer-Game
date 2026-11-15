@@ -107,7 +107,7 @@ public static class GameWorld
         if (KeyboardState.IsKeyDown(Keys.A)) move -= right;
 
         if (move.LengthSquared > 0)
-            move = Vector3.Normalize(move) * Camera.Speed * 20f;
+            move = Vector3.Normalize(move) * Camera.Speed * 40f;
 
         Velocity = new Vector3(move.X, Velocity.Y, move.Z);
 

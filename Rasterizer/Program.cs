@@ -81,6 +81,8 @@ public class Game : GameWindow
     // Measurements
     private float ramUsage = 0.0f;
     private float vramUsage = 0.0f;
+        private float temperature = 0.0f;
+        private float humidity = 0.0f;
     #endregion Statistics
 
     #region UserInterface
@@ -227,7 +229,7 @@ public class Game : GameWindow
             {
                 new Rect
                 {
-                    Size = new UDim2(0.17f, 0.0f, 0.27f, 0.0f),
+            Size = new UDim2(0.17f, 0.0f, 0.31f, 0.0f),
                     Position = new UDim2(0.0f, 5, 0.0f, 5),
                     Alpha = 0.6f,
                     Color = new TextColor(15, 20, 28)
@@ -280,6 +282,8 @@ public class Game : GameWindow
                         new Label($"Screen : {ClientSize.X} x {ClientSize.Y}", "Screen"),
                         new Label($"GPU : {SystemInfo.gpuRenderer}"),
                         new Label($"Camera Position: {_camera.Position}", "CameraPosition"),
+                        new Label("Temperature : 0.0 °C", "Temperature"),
+                        new Label("Humidity : 0.0 mm", "Humidity"),
                     }
                 }
                 
@@ -561,6 +565,7 @@ public class Game : GameWindow
             infoTimer = 0;
             ramUsage = PerfMonitors.GetRamUsage();
             vramUsage = _vram.GetDedicatedBytes(_time);
+            (temperature, humidity) = BiomeUtility.GetBiomeData(_camera.Position.X, _camera.Position.Z);
         }
 
         if (timeSinceLastFps >= 0.5)
@@ -801,6 +806,12 @@ public class Game : GameWindow
 
             var camPos = _perfMenu.Find("CameraPosition") as Label;
             camPos?.Text = $"Camera Position: {_camera.Position}";
+
+            var temperatureLabel = _perfMenu.Find("Temperature") as Label;
+            temperatureLabel?.Text = $"Temperature : {temperature:F1} °C";
+
+            var humidityLabel = _perfMenu.Find("Humidity") as Label;
+            humidityLabel?.Text = $"Humidity : {humidity:F1} mm";
 
             RaycastHit hit;
             VoxelRaycaster.Raycast(_camera.Position, _camera.Front, 15f, false, out hit);

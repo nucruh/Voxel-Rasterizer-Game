@@ -529,14 +529,19 @@ public class Chunk
     public void ApplyMesh()
     {
         mesh?.Dispose();
-        mesh = new Mesh(vertices.ToArray(), false, Position);
+
+        float[] array = vertices.ToArray();
+        mesh = new Mesh(array, false, Position);
+        if (array.Length == 0)
+        {
+            mesh.Active = false;
+        }
 
         if (foliageCount != 0)
         {
             foliageMesh?.Dispose();
             foliageMesh = new Mesh(foliageVertices.ToArray(), true, Position);
         }
-            
 
 
         vertices.Clear();
