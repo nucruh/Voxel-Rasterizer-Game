@@ -197,15 +197,15 @@ public class Chunk
                 float hash = Hash01((int)wx, (int)wz);
 
                 if (!rocky && hash < 0.85f)
-                    continue;//SetBlock(x, grassY + 1, z, GRASS_CARD, true);
+                    SetBlock(x, grassY + 1, z, GRASS_CARD, true);
                 else if (!rocky && hash < 0.853f && grassY + 1 < Size)
                     treeSpots[x, grassY + 1, z] = 1;
                 else if (!rocky && hash < 0.869f && grassY + 1 < Size)
-                    continue;//SetBlock(x, grassY + 1, z, 64515, true); // fern
+                    SetBlock(x, grassY + 1, z, 64515, true); // fern
                 else if (!rocky && hash < 0.9f && grassY + 1 < Size)
-                    continue;//SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
+                    SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
                 else if (!rocky && hash < 0.925f && grassY + 1 < Size)
-                    continue;//SetBlock(x, grassY + 1, z, 64517, true); // porcini shroom
+                    SetBlock(x, grassY + 1, z, 64517, true); // porcini shroom
             }
 
 
@@ -535,7 +535,9 @@ public class Chunk
 
 
         vertices.Clear();
+        vertices.TrimExcess();
         foliageVertices.Clear();
+        foliageVertices.TrimExcess();
         // make some code that disposes the list of vertices and foliageVertices after the mesh is applied, to free up memory, also somehow make it so that apply mesh is run immediately after create mesh for each chunk
         // dont wait for all to generate
     }

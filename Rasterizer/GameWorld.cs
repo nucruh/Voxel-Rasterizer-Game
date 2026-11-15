@@ -3,7 +3,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 public static class GameWorld
 {
-    private const float Gravity = -40.0f * 0.1f;
+    private const float Gravity = -40.0f;
     private const float EyeHeight = 1.6f;   // camera -> feet
     private const float HeadMargin = 0.2f;   // camera -> top of head
     private const float Radius = 0.3f;   // half-width of the player
@@ -117,7 +117,7 @@ public static class GameWorld
             Velocity = new Vector3(Velocity.X, 0, Velocity.Z);
 
         if (grounded && KeyboardState.IsKeyDown(Keys.Space))
-            Velocity = new Vector3(Velocity.X, 10.0f, Velocity.Z);
+            Velocity = new Vector3(Velocity.X, 10.0f * 10.0f, Velocity.Z);
 
         if (!grounded || Velocity.Y > 0)
             Velocity += new Vector3(0, Gravity, 0) * dt;
