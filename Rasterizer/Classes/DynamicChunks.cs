@@ -14,9 +14,9 @@ public static class DynamicChunks
         );
 
         // Queue surrounding chunks
-        for (int x = posChunk.X - 3; x <= posChunk.X + 3; x++)
+        for (int x = posChunk.X - 5; x <= posChunk.X + 5; x++)
         {
-            for (int z = posChunk.Z - 3; z <= posChunk.Z + 3; z++)
+            for (int z = posChunk.Z - 5; z <= posChunk.Z + 5; z++)
             {
                 for (int y = 0; y < 3; y++)
                 {

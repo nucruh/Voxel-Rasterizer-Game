@@ -204,7 +204,7 @@ public class Chunk
                     SetBlock(x, grassY + 1, z, 64515, true); // fern
                 else if (!rocky && hash < 0.9f && grassY + 1 < Size)
                     SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
-                else if (!rocky && hash < 0.925f && grassY + 1 < Size)
+                else if (!rocky && hash < 0.91f && grassY + 1 < Size)
                     SetBlock(x, grassY + 1, z, 64517, true); // porcini shroom
             }
 
@@ -455,7 +455,7 @@ public class Chunk
 
         const float PivotHeight = 0.5f; // "origin" Y from the model json (pivot height above the base)
 
-        int count = rng.Next(2, 5);
+        int count = rng.Next(1, 4);
 
         for (int i = 0; i < count; i++)
         {
@@ -528,10 +528,15 @@ public class Chunk
 
     public void ApplyMesh()
     {
+        mesh?.Dispose();
         mesh = new Mesh(vertices.ToArray(), false, Position);
 
         if (foliageCount != 0)
+        {
+            foliageMesh?.Dispose();
             foliageMesh = new Mesh(foliageVertices.ToArray(), true, Position);
+        }
+            
 
 
         vertices.Clear();
@@ -704,6 +709,7 @@ public class Chunk
         foliageVertices.Clear();
 
         mesh?.Dispose();
+        foliageMesh?.Dispose();
 
     }
 }

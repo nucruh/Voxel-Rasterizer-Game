@@ -51,7 +51,7 @@ public class Game : GameWindow
 
     #region Camera and Scene
     private const float NearPlane = 0.1f;
-    private const float FarPlane = 1000f;
+    private const float FarPlane = 10000f;
 
     public static Camera _camera = null!;
     public static KeyboardState _keyboardState = null!;
@@ -710,7 +710,12 @@ public class Game : GameWindow
 
         foreach (var mesh in _sceneObjects)
         {
-            if (!mesh.Active)
+            if (!mesh.Active || !mesh.IsFoliage)
+                continue;
+
+            float distance = Vector3.Distance(_camera.Position, mesh._meshPosition);
+
+            if (distance > 800f)
                 continue;
 
             Vector3 min = mesh._meshPosition - new Vector3(0.8f);
@@ -719,11 +724,8 @@ public class Game : GameWindow
             if (!cameraFrustum.IsBoxVisible(min, max))
                 continue;
 
-            if (mesh.IsFoliage)
-            {
-                drawCalls++;
-                mesh.Draw();
-            }
+            drawCalls++;
+            mesh.Draw();
                 
         }
 
