@@ -25,6 +25,7 @@ public class Chunk
     public Mesh? mesh;
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
+    public ushort[] biomeUV = new ushort[Size * Size];
     private int foliageCount = 0;
 
     private List<float> vertices = new List<float>();
@@ -173,6 +174,9 @@ public class Chunk
                 bool rocky = slope > 1.6f || height > RockHeight;
                 ushort topBlock = rocky ? STONE : GRASS;
 
+                var (temperature, humidity) = BiomeUtility.GetNormalizedBiomeData(wx, wz);
+                biomeUV[x + z * Size] = (ushort)((int)(temperature * 255) | ((int)(humidity * 255) << 8));
+
                 for (int y = 0; y < Size; y++)
                 {
                     int wy = y + py;
@@ -193,15 +197,15 @@ public class Chunk
                 float hash = Hash01((int)wx, (int)wz);
 
                 if (!rocky && hash < 0.85f)
-                    SetBlock(x, grassY + 1, z, GRASS_CARD, true);
+                    continue;//SetBlock(x, grassY + 1, z, GRASS_CARD, true);
                 else if (!rocky && hash < 0.853f && grassY + 1 < Size)
                     treeSpots[x, grassY + 1, z] = 1;
                 else if (!rocky && hash < 0.869f && grassY + 1 < Size)
-                     SetBlock(x, grassY + 1, z, 64515, true); // fern
+                    continue;//SetBlock(x, grassY + 1, z, 64515, true); // fern
                 else if (!rocky && hash < 0.9f && grassY + 1 < Size)
-                    SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
+                    continue;//SetBlock(x, grassY + 1, z, 64516, true); // andsite pebble
                 else if (!rocky && hash < 0.925f && grassY + 1 < Size)
-                    SetBlock(x, grassY + 1, z, 64517, true); // porcini shroom
+                    continue;//SetBlock(x, grassY + 1, z, 64517, true); // porcini shroom
             }
 
 
@@ -213,7 +217,7 @@ public class Chunk
                     if (treeSpots[_x, _y, _z] != 1)
                         continue;
                        
-                    GenerateOak(_x, _y, _z);
+                    //GenerateOak(_x, _y, _z);
 
                 }
     }
@@ -346,8 +350,26 @@ public class Chunk
 
             Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
 
-            MeshUtility.AddQuad(foliageVertices, look, offset, target, true, true, true, 0.0f, 1.0f);
+            MeshUtility.AddQuad(
+                foliageVertices,
+                look,
+                offset,
+                target,
+                skipRecenter: true,
+                heightPaint: true,
+                upNormal: true,
+                minWeight: 0.0f,
+                maxWeight: 1.0f,
+                size: 1.0f,
+                biomeData: GetBiomeUV(x, z));
         }
+    }
+
+    private ushort GetBiomeUV(int x, int z)
+    {
+        if (x < 0 || x >= Size || z < 0 || z >= Size)
+            return 0;
+        return biomeUV[x + z * Size];
     }
 
     private void LeafBlockGen(int x, int y, int z)
@@ -377,7 +399,8 @@ public class Chunk
                 "oak_leaf",
                 true, true, true,
                 0.2f, 0.2f, scale,
-                biomeData: MeshUtility.PackBiome(128, 168));
+                GetBiomeUV(x, z)
+                );
         }
     }
 
@@ -409,7 +432,9 @@ public class Chunk
                 width,
                 height,
                 true, true,
-                0.0f, 0.2f);
+                0.0f, 0.2f,
+                GetBiomeUV(x, z)
+                );
         }
 
         //MeshUtility.AddModel(foliageVertices, "andesite_pebble_1", _BP, 90f);
@@ -644,7 +669,15 @@ public class Chunk
             pos[v] = j - 0.5f + b * h;
             pos += Position;
 
-            MeshUtility.AddVertex(vertices, pos, look, new Vector2(a * w, b * h), tangentData, 0f, rect);
+            MeshUtility.AddVertex(
+                vertices, pos, look,
+                new Vector2(a * w, b * h),
+                tangentData, 0f, rect,
+                GetBiomeUV(
+                    (int)(pos.X - Position.X),
+                    (int)(pos.Z - Position.Z)
+                )
+            );
         }
     }
 

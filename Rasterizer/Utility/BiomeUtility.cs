@@ -32,9 +32,9 @@ public static class BiomeUtility
     {
         // Displacement fields (depend on BOTH x and z, which is what bends the stripes)
         float warpT = Signed(PerlinNoise.FBM(
-            x / warpScale, z / warpScale, octaves: 4, seed: Game._worldSeed * 7));
+            x / warpScale, z / warpScale, octaves: 1, seed: Game._worldSeed * 7));
         float warpH = Signed(PerlinNoise.FBM(
-            x / warpScale, z / warpScale, octaves: 4, seed: Game._worldSeed * 13));
+            x / warpScale, z / warpScale, octaves: 1, seed: Game._worldSeed * 13));
 
         // Warp the coordinate that the wave runs along
         float warpedX = x + warpT * temperatureWarp;
@@ -134,6 +134,16 @@ public static class BiomeUtility
         int x = (int)(Math.Clamp(normalizedTemperature, 0, 1) * (atlas.Height - 1));
 
         return atlas.GetPixel(x, y);
+    }
+
+    public static (float temperature, float humidity) GetNormalizedBiomeData(float x, float z)
+    {
+        var (temperature, humidity) = GetBiomeData(x, z);
+
+        return (
+            Math.Clamp((temperature - temperatureMin) / (temperatureMax - temperatureMin), 0, 1),
+            Math.Clamp((humidity - humidityMin) / (humidityMax - humidityMin), 0, 1)
+        );
     }
 
     public static void GenerateBiomeMaps(

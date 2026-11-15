@@ -121,6 +121,8 @@ public class Game : GameWindow
         SystemInfo.glslVersion = GL.GetString(StringName.ShadingLanguageVersion);
 
         BlockRegistry.Load("Models/blocks.json");
+        
+        /*
         string generatedMapDirectory = Path.Combine(AppContext.BaseDirectory, "GeneratedMaps");
         Directory.CreateDirectory(generatedMapDirectory);
 
@@ -140,6 +142,7 @@ public class Game : GameWindow
             Path.Combine(generatedMapDirectory, "biome.png"),
             pixelScale: 30f
         );
+        */
 
         BlockDefinition dirt = BlockRegistry.Blocks[1];
 
