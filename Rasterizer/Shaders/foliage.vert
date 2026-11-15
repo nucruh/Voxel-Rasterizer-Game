@@ -19,7 +19,7 @@ out vec3 vWorldPos;
 out vec3 vTangent;
 out float vTangentHandedness;
 out float _windWeight;
-flat out uint vBiomeData;
+out vec2 vBiomeData;
 
 void main()
 {
@@ -56,5 +56,6 @@ void main()
     vertexNormal = aNormal;
     texCoord = aUV;
     _windWeight = windWeight;
-    vBiomeData = aBiomeData;
+    vBiomeData = vec2(float(aBiomeData & 255u),
+                      float((aBiomeData >> 8u) & 255u)) / 255.0;
 }

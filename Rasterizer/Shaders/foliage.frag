@@ -6,7 +6,7 @@ in vec3 vTangent;
 in float vTangentHandedness;
 in vec2 texCoord;
 in float _windWeight;
-flat in uint vBiomeData;
+in vec2 vBiomeData;
 
 out vec4 FragColor;
 
@@ -290,9 +290,7 @@ void main()
     // Tinting
     float tintStrength = tintMask.r;
 
-    vec2 biomeCoord = vec2(float(vBiomeData & 255u),
-                           float((vBiomeData >> 8u) & 255u)) / 255.0;
-    vec3 biomeTint = texture(whittakerAtlas, biomeCoord).rgb;
+    vec3 biomeTint = texture(whittakerAtlas, vBiomeData).rgb;
 
     // Biome tint
     color.rgb *= mix(vec3(1.0), biomeTint, tintStrength);

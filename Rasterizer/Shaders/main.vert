@@ -18,7 +18,7 @@ out vec3 vWorldPos;
 out vec3 vTangent;
 out float vTangentHandedness;
 out vec4 vTileRect;
-flat out uint vBiomeData;
+out vec2 vBiomeData;
 
 void main()
 {
@@ -32,7 +32,8 @@ void main()
     vTangent = aTangent.xyz;
     vTangentHandedness = aTangent.w;
     vTileRect = aTileRect;
-    vBiomeData = aBiomeData;
+    vBiomeData = vec2(float(aBiomeData & 255u),
+                      float((aBiomeData >> 8u) & 255u)) / 255.0;
 
     vertexNormal = aNormal;
     texCoord = aUV;

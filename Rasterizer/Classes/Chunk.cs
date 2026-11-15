@@ -367,8 +367,8 @@ public class Chunk
 
     private ushort GetBiomeUV(int x, int z)
     {
-        if (x < 0 || x >= Size || z < 0 || z >= Size)
-            return 0;
+        x = Math.Clamp(x, 0, Size - 1);
+        z = Math.Clamp(z, 0, Size - 1);
         return biomeUV[x + z * Size];
     }
 
@@ -674,8 +674,8 @@ public class Chunk
                 new Vector2(a * w, b * h),
                 tangentData, 0f, rect,
                 GetBiomeUV(
-                    (int)(pos.X - Position.X),
-                    (int)(pos.Z - Position.Z)
+                    (int)MathF.Floor(pos.X - Position.X + 0.5f),
+                    (int)MathF.Floor(pos.Z - Position.Z + 0.5f)
                 )
             );
         }
