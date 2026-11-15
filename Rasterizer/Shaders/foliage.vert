@@ -5,6 +5,7 @@ layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aTangent;
 layout(location = 4) in float windWeight;
+layout(location = 6) in uint aBiomeData;
 
 uniform mat4 model;
 uniform mat4 view;
@@ -18,6 +19,7 @@ out vec3 vWorldPos;
 out vec3 vTangent;
 out float vTangentHandedness;
 out float _windWeight;
+flat out uint vBiomeData;
 
 void main()
 {
@@ -54,4 +56,5 @@ void main()
     vertexNormal = aNormal;
     texCoord = aUV;
     _windWeight = windWeight;
+    vBiomeData = aBiomeData;
 }

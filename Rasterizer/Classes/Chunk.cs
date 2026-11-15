@@ -376,7 +376,8 @@ public class Chunk
                 _BP,
                 "oak_leaf",
                 true, true, true,
-                0.2f, 0.2f, scale);
+                0.2f, 0.2f, scale,
+                biomeData: MeshUtility.PackBiome(128, 168));
         }
     }
 

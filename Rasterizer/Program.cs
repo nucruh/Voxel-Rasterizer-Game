@@ -121,6 +121,25 @@ public class Game : GameWindow
         SystemInfo.glslVersion = GL.GetString(StringName.ShadingLanguageVersion);
 
         BlockRegistry.Load("Models/blocks.json");
+        string generatedMapDirectory = Path.Combine(AppContext.BaseDirectory, "GeneratedMaps");
+        Directory.CreateDirectory(generatedMapDirectory);
+
+        BiomeUtility.GenerateBiomeMaps(
+            1024,
+            1024,
+            -0,
+            -0,
+            120f,
+            Path.Combine(generatedMapDirectory, "temperature.png"),
+            Path.Combine(generatedMapDirectory, "humidity.png"));
+
+        BiomeUtility.GenerateBiomeAtlasMap(
+            4096,
+            4096,
+            "images/WhittakerAtlas.png",
+            Path.Combine(generatedMapDirectory, "biome.png"),
+            pixelScale: 30f
+        );
 
         BlockDefinition dirt = BlockRegistry.Blocks[1];
 
@@ -445,8 +464,10 @@ public class Game : GameWindow
         */
 
         if (KeyboardState.IsKeyPressed(Keys.F2))
+        {
             _wireframe = !_wireframe;
             GL.PolygonMode(TriangleFace.FrontAndBack, _wireframe ? PolygonMode.Line : PolygonMode.Fill);
+        }
 
         if(KeyboardState.IsKeyPressed(Keys.F1))
             perfMenuVisible = !perfMenuVisible;
@@ -703,41 +724,45 @@ public class Game : GameWindow
                 
         }
 
-        // FXAA post-processing
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+        if(!_wireframe)
+        {
+            // FXAA post-processing
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
 
-        GL.Disable(EnableCap.DepthTest);
-        GL.Disable(EnableCap.CullFace);
-        GL.Disable(EnableCap.Blend);
-        GL.DepthMask(false);
+            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.Blend);
+            GL.DepthMask(false);
 
-        _postProcessShader.Use();
+            _postProcessShader.Use();
 
-        GL.ActiveTexture(TextureUnit.Texture0);
-        GL.BindTexture(TextureTarget.Texture2D, _sceneColor);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _sceneColor);
 
-        GL.ActiveTexture(TextureUnit.Texture1);
-        GL.BindTexture(TextureTarget.Texture2D, _sceneDepth);
+            GL.ActiveTexture(TextureUnit.Texture1);
+            GL.BindTexture(TextureTarget.Texture2D, _sceneDepth);
 
-        _postProcessShader.SetInt("screenTexture", 0);
-        _postProcessShader.SetInt("depthTexture", 1);
-        _postProcessShader.SetFloat("inverseWidth", 1.0f / ClientSize.X);
-        _postProcessShader.SetFloat("inverseHeight", 1.0f / ClientSize.Y);
-        _postProcessShader.SetFloat("nearPlane", NearPlane);
-        _postProcessShader.SetFloat("farPlane", FarPlane);
+            _postProcessShader.SetInt("screenTexture", 0);
+            _postProcessShader.SetInt("depthTexture", 1);
+            _postProcessShader.SetFloat("inverseWidth", 1.0f / ClientSize.X);
+            _postProcessShader.SetFloat("inverseHeight", 1.0f / ClientSize.Y);
+            _postProcessShader.SetFloat("nearPlane", NearPlane);
+            _postProcessShader.SetFloat("farPlane", FarPlane);
 
-        GL.ActiveTexture(TextureUnit.Texture0);
+            GL.ActiveTexture(TextureUnit.Texture0);
 
-        GL.BindVertexArray(_skyVao);
+            GL.BindVertexArray(_skyVao);
 
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
-        // Restore state for UI
-        GL.DepthMask(true);
-        GL.Enable(EnableCap.DepthTest);
-        GL.Enable(EnableCap.Blend);
-        GL.Enable(EnableCap.CullFace);
+            // Restore state for UI
+            GL.DepthMask(true);
+            GL.Enable(EnableCap.DepthTest);
+            GL.Enable(EnableCap.Blend);
+            GL.Enable(EnableCap.CullFace);
+        }
+
 
         //RenderHud(drawCalls);
 

@@ -6,6 +6,7 @@ in vec3 vTangent;
 in float vTangentHandedness;
 in vec2 texCoord;
 in vec4 vTileRect;
+flat in uint vBiomeData;
 
 out vec4 FragColor;
 
@@ -233,7 +234,9 @@ void main()
     // Tinting
     float tintStrength = tintMask.r;
 
-    vec3 biomeTint = texture(whittakerAtlas, vec2(0.5, 0.66)).rgb;
+    vec2 biomeCoord = vec2(float(vBiomeData & 255u),
+                           float((vBiomeData >> 8u) & 255u)) / 255.0;
+    vec3 biomeTint = texture(whittakerAtlas, biomeCoord).rgb;
 
     // Biome tint
     color.rgb *= mix(vec3(1.0), biomeTint, tintStrength);
@@ -242,7 +245,7 @@ void main()
     float largeNoise = WorldNoise(vWorldPos / 48.0);
     float smallNoise = WorldNoise(vWorldPos / 6.0);
 
-    float hueVariation = (largeNoise - 0.5) * 0.15
+    float hueVariation = (largeNoise - 0.5) * 0.17
                        + (smallNoise - 0.5) * 0.10;
 
     color.rgb = mix(

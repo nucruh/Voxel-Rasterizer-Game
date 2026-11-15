@@ -3,16 +3,19 @@ using System;
 
 public static class PerlinNoise
 {
-    private static readonly int[] Permutation = new int[512];
+    private static readonly Dictionary<int, int[]> Permutations = new();
 
-    static PerlinNoise()
+    private static int[] GetPermutation(int seed)
     {
+        if (Permutations.TryGetValue(seed, out int[]? permutation))
+            return permutation;
+
         int[] p = new int[256];
 
         for (int i = 0; i < 256; i++)
             p[i] = i;
 
-        Random random = new Random(12345);
+        Random random = new(seed);
 
         for (int i = 255; i > 0; i--)
         {
@@ -20,8 +23,14 @@ public static class PerlinNoise
             (p[i], p[j]) = (p[j], p[i]);
         }
 
+        int[] result = new int[512];
+
         for (int i = 0; i < 512; i++)
-            Permutation[i] = p[i & 255];
+            result[i] = p[i & 255];
+
+        Permutations[seed] = result;
+
+        return result;
     }
 
     private static float Fade(float t)
@@ -45,8 +54,9 @@ public static class PerlinNoise
                ((h & 2) == 0 ? v : -v);
     }
 
-    public static float Noise(float x, float y, float z)
+    public static float Noise(float x, float y, float z, int seed = 12345)
     {
+        int[] Permutation = GetPermutation(seed);
         int xi = (int)MathF.Floor(x) & 255;
         int yi = (int)MathF.Floor(y) & 255;
         int zi = (int)MathF.Floor(z) & 255;
@@ -80,12 +90,18 @@ public static class PerlinNoise
             w);
     }
 
-    public static float Noise(float x, float y)
+    public static float Noise(float x, float y, int seed = 12345)
     {
-        return Noise(x, y, 0f);
+        return Noise(x, y, 0f, seed);
     }
 
-    public static float FBM(float x, float y, int octaves = 4, float persistence = 0.65f, float lacunarity = 2.1042f)
+    public static float FBM(
+        float x,
+        float y,
+        int octaves = 4,
+        float persistence = 0.65f,
+        float lacunarity = 2.1042f,
+        int seed = 12345)
     {
         float total = 0f;
         float amplitude = 1f;
@@ -94,7 +110,7 @@ public static class PerlinNoise
 
         for (int i = 0; i < octaves; i++)
         {
-            total += Noise(x * frequency, y * frequency) * amplitude;
+            total += Noise(x * frequency, y * frequency, seed) * amplitude;
             maxValue += amplitude;
 
             amplitude *= persistence;

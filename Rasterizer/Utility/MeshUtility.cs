@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 
 [StructLayout(LayoutKind.Sequential)]
-public struct Vertex   // 17 floats, same layout the shader already expects
+public struct Vertex   // 18 source floats; the final value stores packed biome bytes
 {
     public Vector3 Position;
     public Vector3 Normal;
@@ -10,18 +10,25 @@ public struct Vertex   // 17 floats, same layout the shader already expects
     public Vector4 Tangent;
     public float Weight;
     public Vector4 TileRect;
+    public ushort BiomeData;
 }
 
 
 public static class MeshUtility
 {
-    public const int FloatsPerVertex = 17;
+    public const int FloatsPerVertex = 18;
+    // Preserves the previous fixed whittakerAtlas lookup until callers provide
+    // an explicit biome value. Low byte = U, high byte = V.
+    public const ushort DefaultBiomeData = 128 | (168 << 8);
+
+    public static ushort PackBiome(byte u, byte v) => (ushort)(u | (v << 8));
 
 
-    // pos(3) normal(3) uv(2) tangent(4) weight(1) tileRect(4)
+    // pos(3) normal(3) uv(2) tangent(4) weight(1) tileRect(4) packed biome(1)
     // tileRect = (atlasMinU, atlasMinV, cellWidth, cellHeight). Zero width = no tiling (foliage).
     public static void AddVertex(List<float> v, Vector3 p, Vector3 normal, Vector2 uv,
-                                 Vector4 tangent, float weight, Vector4 tileRect = default)
+                                 Vector4 tangent, float weight, Vector4 tileRect = default,
+                                 ushort biomeData = DefaultBiomeData)
     {
         v.Add(p.X); v.Add(p.Y); v.Add(p.Z);
         v.Add(normal.X); v.Add(normal.Y); v.Add(normal.Z);
@@ -29,6 +36,9 @@ public static class MeshUtility
         v.Add(tangent.X); v.Add(tangent.Y); v.Add(tangent.Z); v.Add(tangent.W);
         v.Add(weight);
         v.Add(tileRect.X); v.Add(tileRect.Y); v.Add(tileRect.Z); v.Add(tileRect.W);
+        // A float is used only as a temporary CPU-side transport value. It is
+        // converted back to ushort when the GPU buffer is packed.
+        v.Add(biomeData);
     }
 
     private static readonly Vector2[] QuadUVs =
@@ -51,7 +61,8 @@ public static class MeshUtility
         bool upNormal = false,
         float minWeight = 0.0f,
         float maxWeight = 0.0f,
-        float size = 1.0f
+         float size = 1.0f,
+         ushort biomeData = DefaultBiomeData
         )
     {
         look = Vector3.Normalize(look);
@@ -83,7 +94,8 @@ public static class MeshUtility
             // pos[i].Y is now in [-0.5*size, 0.5*size], so normalize it for the weight lerp
             float weight = heightPaint ? MathHelper.Lerp(minWeight, maxWeight, pos[i].Y / size + 0.5f) : 0.0f;
 
-            AddVertex(v, pos[i] + center, normal, Game._atlas.Map(texture, QuadUVs[i], look), tangentData, weight);
+            AddVertex(v, pos[i] + center, normal, Game._atlas.Map(texture, QuadUVs[i], look), tangentData, weight,
+                biomeData: biomeData);
         }
     }
 
@@ -97,7 +109,8 @@ public static class MeshUtility
     bool heightPaint = false,
     bool upNormal = false,
     float minWeight = 0.0f,
-    float maxWeight = 0.0f)
+     float maxWeight = 0.0f,
+     ushort biomeData = DefaultBiomeData)
     {
         look = Vector3.Normalize(look);
 
@@ -120,13 +133,14 @@ public static class MeshUtility
 
             float weight = heightPaint ? MathHelper.Lerp(minWeight, maxWeight, Vector3.Dot(pos[i], upDir) / height) : 0.0f;
 
-            AddVertex(v, pos[i] + bottom, normal, Game._atlas.Map(texture, QuadUVs[i], look), tangentData, weight);
+            AddVertex(v, pos[i] + bottom, normal, Game._atlas.Map(texture, QuadUVs[i], look), tangentData, weight,
+                biomeData: biomeData);
         }
     }
 
-    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, ushort texture, bool skipRecenter = false, bool heightPaint = false, bool upNormal = false, float minWeight = 0.0f, float maxWeight = 0.0f, float size = 1.0f)
+    public static void AddQuad(List<float> v, Vector3 look, Vector3 offset, ushort texture, bool skipRecenter = false, bool heightPaint = false, bool upNormal = false, float minWeight = 0.0f, float maxWeight = 0.0f, float size = 1.0f, ushort biomeData = DefaultBiomeData)
     {
-        AddQuad(v, look, offset, BlockRegistry.Blocks[texture].Textures[0], skipRecenter, heightPaint, upNormal, minWeight, maxWeight, size);
+        AddQuad(v, look, offset, BlockRegistry.Blocks[texture].Textures[0], skipRecenter, heightPaint, upNormal, minWeight, maxWeight, size, biomeData);
     }
 
     public static void AddModel(
@@ -174,7 +188,8 @@ public static class MeshUtility
                 UV = new Vector2(src[o + 6], src[o + 7]),
                 Tangent = new Vector4(src[o + 8], src[o + 9], src[o + 10], src[o + 11]),
                 Weight = src[o + 12],
-                TileRect = new Vector4(src[o + 13], src[o + 14], src[o + 15], src[o + 16])
+                TileRect = new Vector4(src[o + 13], src[o + 14], src[o + 15], src[o + 16]),
+                BiomeData = (ushort)Math.Clamp(src[o + 17], 0.0f, ushort.MaxValue)
             };
         }
 
@@ -196,7 +211,7 @@ public static class MeshUtility
                 ? MathHelper.Lerp(minWeight, maxWeight, MathHelper.Clamp(vert.Position.Y, 0f, 1f))
                 : vert.Weight;
 
-            AddVertex(v, p, n, vert.UV, new Vector4(t, w), weight, vert.TileRect);
+            AddVertex(v, p, n, vert.UV, new Vector4(t, w), weight, vert.TileRect, vert.BiomeData);
         }
 
         for (int i = 0; i < vertexCount; i += 3)
