@@ -51,7 +51,7 @@ public class Game : GameWindow
 
     #region Camera and Scene
     private const float NearPlane = 0.1f;
-    private const float FarPlane = 10000f;
+    private const float FarPlane = 30000f;
 
     public static Camera _camera = null!;
     public static KeyboardState _keyboardState = null!;
@@ -81,8 +81,8 @@ public class Game : GameWindow
     // Measurements
     private float ramUsage = 0.0f;
     private float vramUsage = 0.0f;
-        private float temperature = 0.0f;
-        private float humidity = 0.0f;
+    private float temperature = 0.0f;
+    private float humidity = 0.0f;
     #endregion Statistics
 
     #region UserInterface
@@ -105,7 +105,7 @@ public class Game : GameWindow
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.On,
+            Vsync = VSyncMode.Off,
             WindowBorder = WindowBorder.Hidden,
             NumberOfSamples = 0
         })
@@ -159,7 +159,7 @@ public class Game : GameWindow
         ramUsage = PerfMonitors.GetRamUsage();
         vramUsage = _vram.GetDedicatedBytes(0);
 
-        _camera = new Camera(new Vector3(3, 40, 4), Vector3.Zero);
+        _camera = new Camera(new Vector3(3, 40, 3), Vector3.Zero);
         CursorState = CursorState.Grabbed;
 
         GL.Enable(EnableCap.DepthTest);

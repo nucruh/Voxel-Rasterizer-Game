@@ -7,8 +7,8 @@ using System.Drawing.Imaging;
 public static class BiomeUtility
 {
     // Scale is distances between extremes
-    public static readonly int temperatureScale = 30000;
-    public static readonly int humidityScale = 45000;
+    public static readonly int temperatureScale = 10000;
+    public static readonly int humidityScale = 15000;
 
 
     public static readonly float humidityMin = 0.0f;
@@ -16,13 +16,13 @@ public static class BiomeUtility
     public static readonly float temperatureMin = -10.0f;
     public static readonly float temperatureMax = 35.0f;
 
-    public static readonly int temperatureNoiseScale = 8000;
+    public static readonly int temperatureNoiseScale = 3333;
     public static readonly float temperatureNoiseStrength = 80f;
     public static readonly float humidityNoiseStrength = 200f;
 
-    public static readonly float warpScale = 60000f;       // feature size of the bends
-    public static readonly float temperatureWarp = 20000f; // blocks; try ~temperatureScale or more
-    public static readonly float humidityWarp = 20000f;
+    public static readonly float warpScale = 20000f;       // feature size of the bends
+    public static readonly float temperatureWarp = 7700f; // blocks; try ~temperatureScale or more
+    public static readonly float humidityWarp = 7700f;
 
     // remap noise to [-1, 1] and stretch it, since FBM rarely hits the extremes
     static float Signed(float n01) => (n01 * 2f - 1f);   // use this if FBM returns [0,1]

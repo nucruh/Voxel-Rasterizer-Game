@@ -6,6 +6,6 @@
     public const float CHUNK_UPDATE_RATE = 0.2f;
 
     // == Chunk Generation
-    public const int MAX_CHUNKS_PER_INTERVAL = 64;
+    public const int MAX_CHUNKS_PER_INTERVAL = 256;
     public const float WORLD_HEIGHT = 96f;
 }

@@ -25,8 +25,8 @@ const float NORMAL_OFFSET = 1.5;
 const float CONST_BIAS = 0.0002;
 const float DENSITY = 0.008;
 
-const vec3 ambient = vec3(1.0, 1.0, 1.0);
-const float ambient_strength = 0.35;
+const vec3 ambient = vec3(0.28, 0.30, 0.34);
+const float ambient_strength = 1.0;
 const float direct_strength = 0.75;
 const float NORMAL_STRENGTH = 0.2;
 
