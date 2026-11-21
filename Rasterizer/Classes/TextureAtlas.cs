@@ -1,11 +1,19 @@
-﻿using OpenTK.Graphics.OpenGL4;
+﻿
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using StbImageSharp;
+
 public class TextureAtlas : IDisposable
 {
+    private struct TextureRegion
+    {
+        public int X, Y, Width, Height;
+    }
+
     private readonly int _tile;
-    private readonly int _cols, _width, _height, _handle;
+    private readonly int _width, _height, _handle;
     private readonly string[] _names;
+    private readonly TextureRegion[] _regions;
 
     private readonly Dictionary<string, int> _nameToId;
 
@@ -21,15 +29,16 @@ public class TextureAtlas : IDisposable
 
         _tile = texSize;
         _names = names;
+        _regions = new TextureRegion[names.Length];
 
         _nameToId = names
             .Select((name, index) => (name, index))
             .ToDictionary(x => x.name, x => x.index);
 
-        _cols = (int)Math.Ceiling(Math.Sqrt(names.Length));
-        int rows = (names.Length + _cols - 1) / _cols;
+        int cols = (int)Math.Ceiling(Math.Sqrt(names.Length));
+        int rows = (names.Length + cols - 1) / cols;
 
-        _width = _cols * _tile;
+        _width = cols * _tile;
         _height = rows * _tile;
 
         byte[] pixels = new byte[_width * _height * 4];
@@ -37,14 +46,25 @@ public class TextureAtlas : IDisposable
         for (int i = 0; i < names.Length; i++)
         {
             using var stream = File.OpenRead(Path.Combine(folder, sourceNames[i] + ".png"));
-            byte[] tile = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha).Data;
+            var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
 
-            int ox = (i % _cols) * _tile;
-            int oy = (i / _cols) * _tile;
+            if (image.Width > _tile || image.Height > _tile)
+                throw new ArgumentException($"Texture '{sourceNames[i]}' exceeds the maximum atlas cell size of {_tile}x{_tile}.");
 
-            for (int y = 0; y < _tile; y++)
-                System.Buffer.BlockCopy(tile, y * _tile * 4, pixels,
-                    ((oy + y) * _width + ox) * 4, _tile * 4);
+            int ox = (i % cols) * _tile;
+            int oy = (i / cols) * _tile;
+
+            _regions[i] = new TextureRegion
+            {
+                X = ox,
+                Y = oy,
+                Width = image.Width,
+                Height = image.Height
+            };
+
+            for (int y = 0; y < image.Height; y++)
+                System.Buffer.BlockCopy(image.Data, y * image.Width * 4, pixels,
+                    ((oy + y) * _width + ox) * 4, image.Width * 4);
         }
 
         _handle = GL.GenTexture();
@@ -93,19 +113,19 @@ public class TextureAtlas : IDisposable
         }
 
         int id = Id(textureName);
+        var region = _regions[id];
 
-        float e = 0.01f / _tile;
+        const float inset = 0.01f;
 
         local = new Vector2(
-            e + local.X * (1 - 2 * e),
-            e + local.Y * (1 - 2 * e));
-
-        int col = id % _cols;
-        int row = id / _cols;
+            inset + local.X * (1 - 2 * inset),
+            inset + local.Y * (1 - 2 * inset)
+        );
 
         return new Vector2(
-            (col + local.X) * _tile / _width,
-            (row + 1 - local.Y) * _tile / _height);
+            (region.X + local.X * region.Width) / _width,
+            (region.Y + (1 - local.Y) * region.Height) / _height
+        );
     }
 
     public void Bind(TextureUnit textureUnit = TextureUnit.Texture0)
@@ -123,8 +143,8 @@ public class TextureAtlas : IDisposable
         _width = image.Width;
         _height = image.Height;
         _tile = 0;
-        _cols = 1;
         _names = Array.Empty<string>();
+        _regions = Array.Empty<TextureRegion>();
         _nameToId = new Dictionary<string, int>();
 
         _handle = GL.GenTexture();

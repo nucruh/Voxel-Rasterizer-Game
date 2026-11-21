@@ -105,7 +105,7 @@ public class Game : GameWindow
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.Off,
+            Vsync = VSyncMode.On,
             WindowBorder = WindowBorder.Hidden,
             NumberOfSamples = 0
         })
@@ -170,10 +170,10 @@ public class Game : GameWindow
         _skyShader = new Shader("Shaders/sky.vert", "Shaders/sky.frag");
         _postProcessShader = new Shader("Shaders/postprocess.vert", "Shaders/postprocess.frag");
 
-        _atlas = new TextureAtlas(TextureNames.DiffuseFolder, TextureNames.Names);
+        _atlas = new TextureAtlas(TextureNames.DiffuseFolder, TextureNames.Names, 48);
         // this needs to be changed to autogenerrate normals
         _normalAtlas = new TextureAtlas(TextureNames.NormalFolder, TextureNames.Names, TextureNames.NormalNames, 256);
-        _tintAtlas = new TextureAtlas(TextureNames.TintFolder, TextureNames.Names, TextureNames.TintNames, 32);
+        _tintAtlas = new TextureAtlas(TextureNames.TintFolder, TextureNames.Names, TextureNames.TintNames, 48);
         _whittakerAtlas = new TextureAtlas("Images/WhittakerAtlas.png");
 
         Models.Initialize();

@@ -339,16 +339,25 @@ public class Chunk
         ushort target = value < 0.5f ? (ushort)64511 : (ushort)64513; // grass_card or short_grass_card
         target = value < 0.1f ? (ushort)64514 : target; // dandelion
 
-        for (int j = 0; j < 4; j++)
+        float size_mod = 0.0f;
+
+        if(target == 64511)
         {
-            float angle = j * MathHelper.PiOver4;
+            size_mod = 0.414f;
+        }
 
-            Vector3 look = Vector3.TransformNormal(new Vector3(1, 0, 1), Matrix4.CreateRotationY(angle));
+        for (int j = 0; j < 2; j++)
+        {
+            float angle = j * MathHelper.PiOver2 + 45f;
 
-            float offsetX = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
-            float offsetZ = (float)(Random.Shared.NextDouble() * 0.16f - 0.08f);
+            Vector3 look = Vector3.TransformNormal(
+                new Vector3(1, 0, 0),
+                Matrix4.CreateRotationY(angle));
 
-            Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, 0, offsetZ);
+            float offsetX = (float)(Random.Shared.NextDouble() * 0.04f - 0.02f);
+            float offsetZ = (float)(Random.Shared.NextDouble() * 0.04f - 0.02f);
+
+            Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, size_mod / 2.0f, offsetZ);
 
             MeshUtility.AddQuad(
                 foliageVertices,
@@ -360,7 +369,7 @@ public class Chunk
                 upNormal: true,
                 minWeight: 0.0f,
                 maxWeight: 1.0f,
-                size: 1.0f,
+                size: 1.0f + size_mod,
                 biomeData: GetBiomeUV(x, z));
         }
     }
