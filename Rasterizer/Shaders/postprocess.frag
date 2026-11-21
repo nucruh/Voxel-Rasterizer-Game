@@ -5,10 +5,33 @@ out vec4 FragColor;
 
 uniform sampler2D screenTexture;   // GL_LINEAR + CLAMP_TO_EDGE, LDR gamma-space color
 uniform sampler2D depthTexture;    // single-sample depth, compare mode OFF
+uniform sampler2D foliageMask;     // 1 where the visible pixel is foliage
 uniform float inverseWidth;
 uniform float inverseHeight;
 uniform float nearPlane;
 uniform float farPlane;
+uniform mat4 projection;
+uniform mat4 inverseProjection;
+
+const float SSAO_RADIUS = 0.5;
+const float SSAO_BIAS = 0.08;
+const float SSAO_STRENGTH = 0.35;
+const int SSAO_SAMPLES = 12;
+
+const vec3 SSAO_KERNEL[SSAO_SAMPLES] = vec3[](
+    vec3( 0.000,  0.000, 1.000),
+    vec3( 0.276,  0.000, 0.961),
+    vec3(-0.276,  0.000, 0.961),
+    vec3( 0.000,  0.276, 0.961),
+    vec3( 0.000, -0.276, 0.961),
+    vec3( 0.530,  0.530, 0.662),
+    vec3(-0.530,  0.530, 0.662),
+    vec3( 0.530, -0.530, 0.662),
+    vec3(-0.530, -0.530, 0.662),
+    vec3( 0.707,  0.000, 0.707),
+    vec3( 0.000,  0.707, 0.707),
+    vec3(-0.707,  0.000, 0.707)
+);
 
 // --- base FXAA settings ---
 #define EDGE_THRESHOLD_MIN 0.0312  // skip very dark areas
@@ -48,15 +71,137 @@ float DepthAt(vec2 o)
     return LinearDepth(textureLod(depthTexture, vUV + o * texel, 0.0).r);
 }
 
+vec3 ViewPosition(vec2 uv, float depth)
+{
+    vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    vec4 view = inverseProjection * clip;
+    return view.xyz / view.w;
+}
+
+float Hash12(vec2 p)
+{
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+bool HasNearbyFoliage(vec2 uv)
+{
+    vec2 texel = vec2(inverseWidth, inverseHeight);
+
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            if (textureLod(foliageMask, uv + vec2(x, y) * texel, 0.0).r > 0.5)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+bool HasNearbyDepthEdge(vec2 uv, float centerDepth)
+{
+    vec2 texel = vec2(inverseWidth, inverseHeight);
+    float allowedDifference = max(0.25, centerDepth * 0.08);
+
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            if (x == 0 && y == 0)
+                continue;
+
+            float neighborDepth = LinearDepth(
+                textureLod(depthTexture, uv + vec2(x, y) * texel, 0.0).r);
+
+            if (abs(neighborDepth - centerDepth) > allowedDifference)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+float ScreenSpaceAo(vec2 uv)
+{
+    float depth = textureLod(depthTexture, uv, 0.0).r;
+    if (depth >= 0.999999)
+        return 1.0;
+
+    // Foliage should retain its original color and should not contribute
+    // occlusion to nearby terrain either.
+    if (textureLod(foliageMask, uv, 0.0).r > 0.5)
+        return 1.0;
+
+    // Avoid reconstructing terrain normals across foliage depth edges. The
+    // foliage depth belongs to a different surface and would create a dark
+    // halo on the terrain immediately behind or beside alpha-tested leaves.
+    if (HasNearbyFoliage(uv))
+        return 1.0;
+
+    float centerDepth = LinearDepth(depth);
+    if (HasNearbyDepthEdge(uv, centerDepth))
+        return 1.0;
+
+    vec2 texel = vec2(inverseWidth, inverseHeight);
+    vec3 position = ViewPosition(uv, depth);
+    vec3 positionRight = ViewPosition(uv + vec2(texel.x, 0.0),
+                                      textureLod(depthTexture, uv + vec2(texel.x, 0.0), 0.0).r);
+    vec3 positionUp = ViewPosition(uv + vec2(0.0, texel.y),
+                                   textureLod(depthTexture, uv + vec2(0.0, texel.y), 0.0).r);
+
+    vec3 normal = normalize(cross(positionRight - position, positionUp - position));
+    if (dot(normal, -position) < 0.0)
+        normal = -normal;
+
+    vec3 random = normalize(vec3(
+        Hash12(gl_FragCoord.xy),
+        Hash12(gl_FragCoord.yx + 17.0),
+        Hash12(gl_FragCoord.xy + 41.0)) * 2.0 - 1.0);
+
+    vec3 tangent = normalize(random - normal * dot(random, normal));
+    vec3 bitangent = cross(normal, tangent);
+    mat3 basis = mat3(tangent, bitangent, normal);
+
+    float occlusion = 0.0;
+    for (int i = 0; i < SSAO_SAMPLES; i++)
+    {
+        vec3 samplePosition = position + basis * SSAO_KERNEL[i] * SSAO_RADIUS;
+        vec4 projected = projection * vec4(samplePosition, 1.0);
+        vec2 sampleUv = projected.xy / projected.w * 0.5 + 0.5;
+
+        if (sampleUv.x <= 0.0 || sampleUv.x >= 1.0 ||
+            sampleUv.y <= 0.0 || sampleUv.y >= 1.0)
+            continue;
+
+        float sampleDepth = textureLod(depthTexture, sampleUv, 0.0).r;
+        if (sampleDepth >= 0.999999)
+            continue;
+
+        if (textureLod(foliageMask, sampleUv, 0.0).r > 0.5)
+            continue;
+
+        float sceneZ = ViewPosition(sampleUv, sampleDepth).z;
+        float range = smoothstep(0.0, 1.0,
+                                 SSAO_RADIUS / abs(position.z - sceneZ));
+
+        // View-space Z is negative; a larger value is closer to the camera.
+        occlusion += step(samplePosition.z + SSAO_BIAS, sceneZ) * range;
+    }
+
+    float ao = 1.0 - occlusion / float(SSAO_SAMPLES);
+    return pow(clamp(ao, 0.0, 1.0), SSAO_STRENGTH);
+}
+
 void main()
 {
     vec2 texel = vec2(inverseWidth, inverseHeight);
 
-    if(true)
-    {
-    FragColor = vec4(Sample(vUV), 1.0);
+    float ao = ScreenSpaceAo(vUV);
+    FragColor = vec4(Sample(vUV) * ao, 1.0);
     return;
-    }
 
     vec3  colorCenter = Sample(vUV);
     float lumaCenter  = Luma(colorCenter);

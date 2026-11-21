@@ -217,7 +217,7 @@ public class Chunk
                     if (treeSpots[_x, _y, _z] != 1)
                         continue;
                        
-                    //GenerateOak(_x, _y, _z);
+                    GenerateOak(_x, _y, _z);
 
                 }
     }

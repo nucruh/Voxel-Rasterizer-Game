@@ -7,19 +7,22 @@ in float vTangentHandedness;
 in vec2 texCoord;
 in vec4 vTileRect;
 in vec2 vBiomeData;
+in float vViewDepth;
 
-out vec4 FragColor;
+layout(location = 0) out vec4 FragColor;
+layout(location = 1) out float FoliageMask;
 
 uniform sampler2D atlas;
 uniform sampler2D normalAtlas;
 uniform sampler2D tintAtlas;
 uniform sampler2D whittakerAtlas;
-uniform sampler2DShadow shadowMap;
+uniform sampler2DShadow shadowMaps[3];
 uniform vec3 uCamPos;
 
-uniform mat4 lightSpace;
+uniform mat4 lightSpaces[3];
+uniform vec3 cascadeSplits;
+uniform vec3 cascadeTexelWorlds;
 uniform vec3 lightDir;
-uniform float texelWorld;
 
 const float NORMAL_OFFSET = 1.5;
 const float CONST_BIAS = 0.0002;
@@ -75,31 +78,69 @@ vec3 ColorCorrection(
     return clamp(color, 0.0, 1.0);
 }
 
-float ShadowFactor(vec3 worldPos, vec3 N)
+float SampleShadow(int cascade, vec3 worldPos, vec3 N)
 {
     float cosT = clamp(dot(N, -lightDir), 0.0, 1.0);
     float sinT = sqrt(1.0 - cosT * cosT);
 
-    vec3 offsetPos = worldPos + N * texelWorld * NORMAL_OFFSET * sinT;
+    float cascadeTexelWorld = cascade == 0 ? cascadeTexelWorlds.x
+                         : cascade == 1 ? cascadeTexelWorlds.y
+                                        : cascadeTexelWorlds.z;
 
-    vec4 lp = lightSpace * vec4(offsetPos, 1.0);
+    vec3 offsetPos = worldPos + N * cascadeTexelWorld * NORMAL_OFFSET * sinT;
+
+    vec4 lp = lightSpaces[cascade] * vec4(offsetPos, 1.0);
     vec3 p = lp.xyz / lp.w * 0.5 + 0.5;
 
-    if (p.z > 1.0) return 1.0;
+    if (p.z > 1.0 || p.z < 0.0) return 1.0;
 
     float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    vec2 texelSize = 1.0 / textureSize(shadowMaps[cascade], 0);
 
     for (int x = -1; x <= 1; x++)
     {
         for (int y = -1; y <= 1; y++)
         {
             vec2 offset = vec2(x, y) * texelSize;
-            shadow += texture(shadowMap, vec3(p.xy + offset, p.z - CONST_BIAS));
+            shadow += texture(shadowMaps[cascade], vec3(p.xy + offset, p.z - CONST_BIAS));
         }
     }
 
     return shadow / 9.0;
+}
+
+float ShadowFactor(vec3 worldPos, vec3 N)
+{
+    // Blend in light-space shadow maps near cascade boundaries instead of
+    // switching abruptly between projections with different resolutions.
+    const float cascade0Blend = 8.0;
+    const float cascade1Blend = 16.0;
+
+    if (vViewDepth < cascadeSplits.x - cascade0Blend)
+        return SampleShadow(0, worldPos, N);
+
+    if (vViewDepth < cascadeSplits.x + cascade0Blend)
+    {
+        float weight = smoothstep(cascadeSplits.x - cascade0Blend,
+                                  cascadeSplits.x + cascade0Blend,
+                                  vViewDepth);
+        return mix(SampleShadow(0, worldPos, N),
+                   SampleShadow(1, worldPos, N), weight);
+    }
+
+    if (vViewDepth < cascadeSplits.y - cascade1Blend)
+        return SampleShadow(1, worldPos, N);
+
+    if (vViewDepth < cascadeSplits.y + cascade1Blend)
+    {
+        float weight = smoothstep(cascadeSplits.y - cascade1Blend,
+                                  cascadeSplits.y + cascade1Blend,
+                                  vViewDepth);
+        return mix(SampleShadow(1, worldPos, N),
+                   SampleShadow(2, worldPos, N), weight);
+    }
+
+    return SampleShadow(2, worldPos, N);
 }
 
 vec3 ApplyAtmosphere(vec3 color, vec3 viewDir, float depth)
@@ -191,6 +232,7 @@ vec3 RotateHue(vec3 color, float angle)
 
 void main()
 {
+    FoliageMask = 0.0;
     // derivatives must be taken before any discard / branching
     vec2 dx = dFdx(texCoord);
     vec2 dy = dFdy(texCoord);

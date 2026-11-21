@@ -32,13 +32,15 @@ public class Game : GameWindow
     public static TextureAtlas _whittakerAtlas = null!;
 
     // Shadows
+    private const int CascadeCount = 3;
     private const int ShadowMapSize = 4096;
-    private ShadowMap _shadow = null!;
+    private readonly float[] _cascadeSplits = { 48f, 128f, 512f};
+    private ShadowMap[] _shadowCascades = null!;
 
     // Light
-    private Matrix4 _lightSpace;
+    private readonly Matrix4[] _lightSpaces = new Matrix4[CascadeCount];
+    private readonly float[] _texelWorld = new float[CascadeCount];
     private Vector3 _lightDir = Vector3.Normalize(new Vector3(-0.5f, -1f, -0.3f)); // direction the light TRAVELS
-    private float _texelWorld;
 
     #endregion Rendering
 
@@ -47,6 +49,7 @@ public class Game : GameWindow
     private int _sceneFbo;
     private int _sceneColor;
     private int _sceneDepth;
+    private int _sceneFoliageMask;
     #endregion Bindings
 
     #region Camera and Scene
@@ -58,7 +61,7 @@ public class Game : GameWindow
 
     public static List<Mesh> _sceneObjects = new List<Mesh>();
     public static ConcurrentDictionary<Vector3i, Chunk> _chunks = new();
-    public static Dictionary<Vector3i, bool> _chunkGenerateQueue = new();
+    public static ConcurrentDictionary<Vector3i, byte> _chunkGenerateQueue = new();
 
     private Frustum cameraFrustum = new Frustum();
     private Frustum lightFrustum = new Frustum();
@@ -76,7 +79,8 @@ public class Game : GameWindow
     private double _time = 0.0;
     private float shadowTimer = 0.0f;
     private float infoTimer = 0.0f;
-    private float chunkUpdateTimer = 0.0f;
+    private float chunkUploadTimer = 0.0f;
+    private float chunkGenerationTimer = 0.0f;
 
     // Measurements
     private float ramUsage = 0.0f;
@@ -105,7 +109,7 @@ public class Game : GameWindow
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.On,
+            Vsync = VSyncMode.Off,
             WindowBorder = WindowBorder.Hidden,
             NumberOfSamples = 0
         })
@@ -179,7 +183,10 @@ public class Game : GameWindow
         Models.Initialize();
         WorldPregeneration.Pregenerate();
 
-        _shadow = new ShadowMap(ShadowMapSize);
+        _shadowCascades = new ShadowMap[CascadeCount];
+        for (int i = 0; i < CascadeCount; i++)
+            _shadowCascades[i] = new ShadowMap(ShadowMapSize);
+        shadowTimer = 1.0f / SHADOW_MAP_RATE;
 
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -187,15 +194,6 @@ public class Game : GameWindow
         CreateSceneFramebuffer(ClientSize.X, ClientSize.Y);
 
         _skyVao = GL.GenVertexArray();
-
-        float worldW = WorldChunks * Chunk.Size;
-        _lightSpace = BuildLightSpaceFit(
-            _lightDir,
-            new Vector3(0, 0, 0),
-            new Vector3(worldW, WORLD_HEIGHT, worldW),
-            ShadowMapSize,
-            out _texelWorld);
-
 
         int icon = ImageRenderer.Load("Images/Thumbnail.jpg");   // load once, not every frame
         _menu = new Frame
@@ -292,47 +290,100 @@ public class Game : GameWindow
         };
     }
 
-    static Matrix4 BuildLightSpaceFit(
+    private static Matrix4 BuildCascadeLightSpace(
         Vector3 lightDir,
-        Vector3 cameraPosition,
-        Vector3 boundsSize,
+        Matrix4 cameraView,
+        Matrix4 cameraProjection,
+        float nearDistance,
+        float farDistance,
         int mapSize,
         out float texelWorld)
     {
-        Vector3 center = cameraPosition;
+        Matrix4 inverseView = Matrix4.Invert(cameraView);
+        Matrix4 inverseProjection = Matrix4.Invert(cameraProjection);
+        Vector3[] corners = new Vector3[8];
+        int cornerIndex = 0;
+
+        for (int y = -1; y <= 1; y += 2)
+        {
+            for (int x = -1; x <= 1; x += 2)
+            {
+                Vector3 nearRay = Vector3.TransformPosition(new Vector3(x, y, -1f), inverseProjection);
+                Vector3 farRay = Vector3.TransformPosition(new Vector3(x, y, 1f), inverseProjection);
+
+                Vector3 nearPoint = nearRay * (nearDistance / -nearRay.Z);
+                Vector3 farPoint = farRay * (farDistance / -farRay.Z);
+
+                corners[cornerIndex++] = Vector3.TransformPosition(nearPoint, inverseView);
+                corners[cornerIndex++] = Vector3.TransformPosition(farPoint, inverseView);
+            }
+        }
+
+        Vector3 center = Vector3.Zero;
+        foreach (Vector3 corner in corners)
+            center += corner;
+        center /= corners.Length;
 
         Vector3 up = MathF.Abs(lightDir.Y) > 0.99f ? Vector3.UnitZ : Vector3.UnitY;
-
-        Matrix4 view = Matrix4.LookAt(center - lightDir, center, up);
-
-        Vector3 halfSize = boundsSize * 0.5f;
-
-        Vector3 boundsMin = center - halfSize;
-        Vector3 boundsMax = center + halfSize;
+        Matrix4 lightView = Matrix4.LookAt(center - lightDir * 1000f, center, up);
 
         Vector3 lo = new(float.MaxValue);
         Vector3 hi = new(float.MinValue);
-
-        for (int i = 0; i < 8; i++)
+        foreach (Vector3 corner in corners)
         {
-            Vector3 corner = new(
-                (i & 1) == 0 ? boundsMin.X : boundsMax.X,
-                (i & 2) == 0 ? boundsMin.Y : boundsMax.Y,
-                (i & 4) == 0 ? boundsMin.Z : boundsMax.Z
-            );
-
-            Vector3 v = Vector3.TransformPosition(corner, view);
-
-            lo = Vector3.ComponentMin(lo, v);
-            hi = Vector3.ComponentMax(hi, v);
+            Vector3 lightCorner = Vector3.TransformPosition(corner, lightView);
+            lo = Vector3.ComponentMin(lo, lightCorner);
+            hi = Vector3.ComponentMax(hi, lightCorner);
         }
 
-        float pad = 2f;
+        const float xyPadding = 2f;
+        const float zPadding = 16f;
+        lo.X -= xyPadding;
+        lo.Y -= xyPadding;
+        hi.X += xyPadding;
+        hi.Y += xyPadding;
 
         texelWorld = MathF.Max(hi.X - lo.X, hi.Y - lo.Y) / mapSize;
 
-        Matrix4 proj = Matrix4.CreateOrthographicOffCenter(lo.X, hi.X, lo.Y, hi.Y, -hi.Z - pad, -lo.Z + pad);
-        return view * proj;
+        return lightView * Matrix4.CreateOrthographicOffCenter(
+            lo.X, hi.X, lo.Y, hi.Y,
+            -hi.Z - zPadding, -lo.Z + zPadding);
+    }
+
+    private void UpdateCascadeMatrices(Matrix4 cameraView, Matrix4 cameraProjection)
+    {
+        float nearDistance = NearPlane;
+
+        for (int i = 0; i < CascadeCount; i++)
+        {
+            _lightSpaces[i] = BuildCascadeLightSpace(
+                _lightDir,
+                cameraView,
+                cameraProjection,
+                nearDistance,
+                _cascadeSplits[i],
+                ShadowMapSize,
+                out _texelWorld[i]);
+
+            nearDistance = _cascadeSplits[i];
+        }
+    }
+
+    private void SetShadowCascadeUniforms(Shader shader)
+    {
+        shader.SetVector3("cascadeSplits",
+            new Vector3(_cascadeSplits[0], _cascadeSplits[1], _cascadeSplits[2]));
+        shader.SetVector3("cascadeTexelWorlds",
+            new Vector3(_texelWorld[0], _texelWorld[1], _texelWorld[2]));
+
+        for (int i = 0; i < CascadeCount; i++)
+        {
+            TextureUnit textureUnit = (TextureUnit)((int)TextureUnit.Texture1 + i);
+            GL.ActiveTexture(textureUnit);
+            GL.BindTexture(TextureTarget.Texture2D, _shadowCascades[i].Texture);
+            shader.SetInt($"shadowMaps[{i}]", (int)textureUnit - (int)TextureUnit.Texture0);
+            shader.SetMatrix4($"lightSpaces[{i}]", _lightSpaces[i]);
+        }
     }
 
     private void CreateSceneFramebuffer(int width, int height)
@@ -342,6 +393,7 @@ public class Game : GameWindow
             GL.DeleteFramebuffer(_sceneFbo);
             GL.DeleteTexture(_sceneColor);
             GL.DeleteTexture(_sceneDepth);
+            GL.DeleteTexture(_sceneFoliageMask);
         }
 
         _sceneFbo = GL.GenFramebuffer();
@@ -356,6 +408,24 @@ public class Game : GameWindow
         GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureWrapS,(int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureWrapT,(int)TextureWrapMode.ClampToEdge);
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,TextureTarget.Texture2D,_sceneColor,0);
+
+        // Mask identifying visible foliage pixels for post-process effects.
+        _sceneFoliageMask = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, _sceneFoliageMask);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R8,
+            width, height, 0, PixelFormat.Red, PixelType.UnsignedByte, IntPtr.Zero);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1,
+            TextureTarget.Texture2D, _sceneFoliageMask, 0);
+
+        GL.DrawBuffers(2, new[]
+        {
+            DrawBuffersEnum.ColorAttachment0,
+            DrawBuffersEnum.ColorAttachment1
+        });
 
         // Depth texture (sampled by the FXAA pass)
         _sceneDepth = GL.GenTexture();
@@ -381,10 +451,6 @@ public class Game : GameWindow
 
     void RenderShadowMap()
     {
-        GL.Viewport(0, 0, _shadow.Size, _shadow.Size);
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _shadow.Fbo);
-        GL.Clear(ClearBufferMask.DepthBufferBit);
-
         GL.Enable(EnableCap.DepthTest);
         GL.Enable(EnableCap.CullFace);
         GL.CullFace(TriangleFace.Back);
@@ -392,7 +458,6 @@ public class Game : GameWindow
 
         _shadowShader.Use();
         _shadowShader.SetMatrix4("model", Matrix4.Identity);
-        _shadowShader.SetMatrix4("lightSpace", _lightSpace);
         _shadowShader.SetFloat("time", (float)_time);
 
         _atlas.Bind(TextureUnit.Texture0);
@@ -401,31 +466,36 @@ public class Game : GameWindow
         _normalAtlas.Bind(TextureUnit.Texture1);
         _shadowShader.SetInt("normalAtlas", 1);
 
-        lightFrustum.Update(_lightSpace);
-
-        foreach (var mesh in _sceneObjects)
+        for (int cascade = 0; cascade < CascadeCount; cascade++)
         {
-            if(mesh.Active != true)
-                continue;
+            GL.Viewport(0, 0, _shadowCascades[cascade].Size, _shadowCascades[cascade].Size);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _shadowCascades[cascade].Fbo);
+            GL.Clear(ClearBufferMask.DepthBufferBit);
 
-            _shadowShader.SetInt("isFoliage", mesh.IsFoliage ? 1 : 0);
+            _shadowShader.SetMatrix4("lightSpace", _lightSpaces[cascade]);
+            lightFrustum.Update(_lightSpaces[cascade]);
 
-            Vector3 min = mesh._meshPosition - new Vector3(0.8f);
-            Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
-
-            if (!lightFrustum.IsBoxVisible(min, max))
-                continue;
-
-            if (mesh.IsFoliage)
+            foreach (var mesh in _sceneObjects)
             {
-                //continue;
-                GL.Disable(EnableCap.CullFace);
+                if (mesh.Active != true)
+                    continue;
+
+                _shadowShader.SetInt("isFoliage", mesh.IsFoliage ? 1 : 0);
+
+                Vector3 min = mesh._meshPosition - new Vector3(0.8f);
+                Vector3 max = mesh._meshPosition + new Vector3(Chunk.Size - 0.2f);
+
+                if (!lightFrustum.IsBoxVisible(min, max))
+                    continue;
+
+                if (mesh.IsFoliage)
+                    GL.Disable(EnableCap.CullFace);
+
+                mesh.Draw();
+
+                if (mesh.IsFoliage)
+                    GL.Enable(EnableCap.CullFace);
             }
-
-            mesh.Draw();
-
-            if (mesh.IsFoliage)
-                GL.Enable(EnableCap.CullFace);
         }
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
@@ -518,14 +588,22 @@ public class Game : GameWindow
         }
 
         if(!showMenu)
-            _camera.Look(MouseState.Delta);
+            _camera.Look(MouseState.Delta, dt);
 
-        chunkUpdateTimer += (float)e.Time;
+        chunkUploadTimer += dt;
+        chunkGenerationTimer += dt;
 
-        if (chunkUpdateTimer >= CHUNK_UPDATE_RATE)
+        bool uploadChunks = chunkUploadTimer >= CHUNK_UPLOAD_INTERVAL;
+        bool generateChunks = chunkGenerationTimer >= CHUNK_GENERATION_INTERVAL;
+
+        if (uploadChunks || generateChunks)
         {
-            chunkUpdateTimer = 0;
-            DynamicChunks.HandleChunks();
+            if (uploadChunks)
+                chunkUploadTimer = 0;
+            if (generateChunks)
+                chunkGenerationTimer = 0;
+
+            DynamicChunks.HandleChunks(uploadChunks, generateChunks);
         }
     }
 
@@ -545,15 +623,17 @@ public class Game : GameWindow
 
         uint drawCalls = 0;
 
+        Matrix4 view = _camera.GetViewMatrix();
+        Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
+            MathHelper.DegreesToRadians(70f),
+            Size.X / (float)Math.Max(Size.Y, 1),
+            NearPlane,
+            FarPlane);
+
         shadowTimer += (float)e.Time;
         if(shadowTimer >= 1.0 / SHADOW_MAP_RATE)
         {
-            _lightSpace = BuildLightSpaceFit(
-                _lightDir,
-                _camera.Position,
-                new Vector3(128, WORLD_HEIGHT, 128),
-                ShadowMapSize,
-                out _texelWorld);
+            UpdateCascadeMatrices(view, projection);
 
             shadowTimer = 0;
             RenderShadowMap();
@@ -588,12 +668,6 @@ public class Game : GameWindow
         GL.FrontFace(FrontFaceDirection.Cw);
 
         Matrix4 model = Matrix4.CreateRotationY(0f);
-        Matrix4 view = _camera.GetViewMatrix();
-        Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
-            MathHelper.DegreesToRadians(70f),
-            Size.X / (float)Math.Max(Size.Y, 1),
-            NearPlane,
-            FarPlane);
 
         GL.Disable(EnableCap.DepthTest);
         GL.DepthMask(false);
@@ -633,30 +707,25 @@ public class Game : GameWindow
         _shader.SetMatrix4("view", view);
         _shader.SetMatrix4("projection", projection);
 
-        _shader.SetMatrix4("lightSpace", _lightSpace);
         _shader.SetVector3("lightDir", _lightDir);
-        _shader.SetFloat("texelWorld", _texelWorld);
+        SetShadowCascadeUniforms(_shader);
         _shader.SetVector3("uCamPos", _camera.Position);
 
-        GL.ActiveTexture(TextureUnit.Texture1);
-        GL.BindTexture(TextureTarget.Texture2D, _shadow.Texture);
-        _shader.SetInt("shadowMap", 1);
-
-        GL.ActiveTexture(TextureUnit.Texture0);
-        _atlas.Bind(TextureUnit.Texture0);
-        _shader.SetInt("atlas", 0);
-
-        GL.ActiveTexture(TextureUnit.Texture2);
-        _normalAtlas.Bind(TextureUnit.Texture2);
-        _shader.SetInt("normalAtlas", 2);
-
-        GL.ActiveTexture(TextureUnit.Texture3);
-        _tintAtlas.Bind(TextureUnit.Texture3);
-        _shader.SetInt("tintAtlas", 3);
-
         GL.ActiveTexture(TextureUnit.Texture4);
-        _whittakerAtlas.Bind(TextureUnit.Texture4);
-        _shader.SetInt("whittakerAtlas", 4);
+        _atlas.Bind(TextureUnit.Texture4);
+        _shader.SetInt("atlas", 4);
+
+        GL.ActiveTexture(TextureUnit.Texture5);
+        _normalAtlas.Bind(TextureUnit.Texture5);
+        _shader.SetInt("normalAtlas", 5);
+
+        GL.ActiveTexture(TextureUnit.Texture6);
+        _tintAtlas.Bind(TextureUnit.Texture6);
+        _shader.SetInt("tintAtlas", 6);
+
+        GL.ActiveTexture(TextureUnit.Texture7);
+        _whittakerAtlas.Bind(TextureUnit.Texture7);
+        _shader.SetInt("whittakerAtlas", 7);
 
         cameraFrustum.Update(view * projection);
         foreach (var mesh in _sceneObjects)
@@ -685,31 +754,26 @@ public class Game : GameWindow
         _foliageShader.SetMatrix4("view", view);
         _foliageShader.SetMatrix4("projection", projection);
 
-        _foliageShader.SetMatrix4("lightSpace", _lightSpace);
         _foliageShader.SetVector3("lightDir", _lightDir);
-        _foliageShader.SetFloat("texelWorld", _texelWorld);
+        SetShadowCascadeUniforms(_foliageShader);
         _foliageShader.SetVector3("uCamPos", _camera.Position);
         _foliageShader.SetFloat("time", (float)_time);
 
-        GL.ActiveTexture(TextureUnit.Texture1);
-        GL.BindTexture(TextureTarget.Texture2D, _shadow.Texture);
-        _foliageShader.SetInt("shadowMap", 1);
-
-        GL.ActiveTexture(TextureUnit.Texture0);
-        _atlas.Bind(TextureUnit.Texture0);
-        _foliageShader.SetInt("atlas", 0);
-
-        GL.ActiveTexture(TextureUnit.Texture2);
-        _normalAtlas.Bind(TextureUnit.Texture2);
-        _foliageShader.SetInt("normalAtlas", 2);
-
-        GL.ActiveTexture(TextureUnit.Texture3);
-        _tintAtlas.Bind(TextureUnit.Texture3);
-        _foliageShader.SetInt("tintAtlas", 3);
-
         GL.ActiveTexture(TextureUnit.Texture4);
-        _whittakerAtlas.Bind(TextureUnit.Texture4);
-        _foliageShader.SetInt("whittakerAtlas", 4);
+        _atlas.Bind(TextureUnit.Texture4);
+        _foliageShader.SetInt("atlas", 4);
+
+        GL.ActiveTexture(TextureUnit.Texture5);
+        _normalAtlas.Bind(TextureUnit.Texture5);
+        _foliageShader.SetInt("normalAtlas", 5);
+
+        GL.ActiveTexture(TextureUnit.Texture6);
+        _tintAtlas.Bind(TextureUnit.Texture6);
+        _foliageShader.SetInt("tintAtlas", 6);
+
+        GL.ActiveTexture(TextureUnit.Texture7);
+        _whittakerAtlas.Bind(TextureUnit.Texture7);
+        _foliageShader.SetInt("whittakerAtlas", 7);
 
         GL.Disable(EnableCap.CullFace);
 
@@ -753,12 +817,18 @@ public class Game : GameWindow
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, _sceneDepth);
 
+            GL.ActiveTexture(TextureUnit.Texture2);
+            GL.BindTexture(TextureTarget.Texture2D, _sceneFoliageMask);
+
             _postProcessShader.SetInt("screenTexture", 0);
             _postProcessShader.SetInt("depthTexture", 1);
+            _postProcessShader.SetInt("foliageMask", 2);
             _postProcessShader.SetFloat("inverseWidth", 1.0f / ClientSize.X);
             _postProcessShader.SetFloat("inverseHeight", 1.0f / ClientSize.Y);
             _postProcessShader.SetFloat("nearPlane", NearPlane);
             _postProcessShader.SetFloat("farPlane", FarPlane);
+            _postProcessShader.SetMatrix4("projection", projection);
+            _postProcessShader.SetMatrix4("inverseProjection", Matrix4.Invert(projection));
 
             GL.ActiveTexture(TextureUnit.Texture0);
 
@@ -843,13 +913,15 @@ public class Game : GameWindow
         _tintAtlas.Dispose();
         _whittakerAtlas.Dispose();
         _shader.Dispose();
-        _shadow.Dispose();
+        foreach (ShadowMap shadow in _shadowCascades)
+            shadow.Dispose();
         _shadowShader.Dispose();
         _postProcessShader.Dispose();
 
         GL.DeleteFramebuffer(_sceneFbo);
         GL.DeleteTexture(_sceneColor);
         GL.DeleteTexture(_sceneDepth);
+        GL.DeleteTexture(_sceneFoliageMask);
         GL.DeleteVertexArray(_skyVao);
         _skyShader.Dispose();
         _foliageShader.Dispose();

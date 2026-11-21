@@ -6,8 +6,12 @@ public class Camera
     public float Yaw;    // degrees
     public float Pitch;  // degrees
 
+    private float _targetYaw;
+    private float _targetPitch;
+
     public float Speed = 8f;
     public float Sensitivity = 0.15f;
+    public float RotationSmoothing = 24f;
 
     public Camera(Vector3 position, Vector3 target)
     {
@@ -16,6 +20,8 @@ public class Camera
         Vector3 dir = Vector3.Normalize(target - position);
         Yaw = MathHelper.RadiansToDegrees(MathF.Atan2(dir.Z, dir.X));
         Pitch = MathHelper.RadiansToDegrees(MathF.Asin(dir.Y));
+        _targetYaw = Yaw;
+        _targetPitch = Pitch;
     }
 
     public Vector3 Front
@@ -37,10 +43,16 @@ public class Camera
     public Matrix4 GetViewMatrix() =>
         Matrix4.LookAt(Position, Position + Front, Vector3.UnitY);
 
-    public void Look(Vector2 mouseDelta)
+    public void Look(Vector2 mouseDelta, float deltaTime)
     {
-        Yaw += mouseDelta.X * Sensitivity;
-        Pitch -= mouseDelta.Y * Sensitivity;
-        Pitch = Math.Clamp(Pitch, -89f, 89f);
+        _targetYaw += mouseDelta.X * Sensitivity;
+        _targetPitch -= mouseDelta.Y * Sensitivity;
+        _targetPitch = Math.Clamp(_targetPitch, -89f, 89f);
+
+        // Frame-rate independent exponential smoothing. The mouse can still
+        // move freely, but individual raw-delta spikes no longer snap the view.
+        float blend = 1f - MathF.Exp(-RotationSmoothing * MathF.Max(deltaTime, 0f));
+        Yaw = MathHelper.Lerp(Yaw, _targetYaw, blend);
+        Pitch = MathHelper.Lerp(Pitch, _targetPitch, blend);
     }
 }

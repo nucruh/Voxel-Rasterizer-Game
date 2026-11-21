@@ -20,6 +20,7 @@ out vec3 vTangent;
 out float vTangentHandedness;
 out float _windWeight;
 out vec2 vBiomeData;
+out float vViewDepth;
 
 void main()
 {
@@ -45,6 +46,7 @@ void main()
     world.z += sin(time * 0.9 + phase + height * 2.0) * 0.12 * bend * windWeight * windFade;
 
     vWorldPos = world.xyz;
+    vViewDepth = -(view * world).z;
 
     gl_Position = projection * view * world;
 

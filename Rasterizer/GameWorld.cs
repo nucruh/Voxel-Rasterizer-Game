@@ -25,6 +25,7 @@ public static class GameWorld
     private static Camera Camera => Game._camera;
 
     private static Vector3 Velocity = Vector3.Zero;
+    private static bool _flying;
 
     private static bool Cast(Vector3 origin, Vector3 dir, float reach,
                          out float distance, out Vector3 position)
@@ -94,6 +95,12 @@ public static class GameWorld
     {
         dt = MathF.Min(dt, 1f / 20f); // avoid tunnelling on frame spikes
 
+        if (KeyboardState.IsKeyPressed(Keys.E))
+        {
+            _flying = !_flying;
+            Velocity = Vector3.Zero;
+        }
+
         Vector3 forward = new Vector3(Camera.Front.X, 0, Camera.Front.Z);
         if (forward.LengthSquared > 0)
             forward = Vector3.Normalize(forward);
@@ -105,6 +112,20 @@ public static class GameWorld
         if (KeyboardState.IsKeyDown(Keys.S)) move -= forward;
         if (KeyboardState.IsKeyDown(Keys.D)) move += right;
         if (KeyboardState.IsKeyDown(Keys.A)) move -= right;
+
+        if (_flying)
+        {
+            if (KeyboardState.IsKeyDown(Keys.Space))
+                move += Vector3.UnitY;
+            if (KeyboardState.IsKeyDown(Keys.LeftShift))
+                move -= Vector3.UnitY;
+
+            if (move.LengthSquared > 0)
+                move = Vector3.Normalize(move) * Camera.Speed;
+
+            Camera.Position += move * dt * 5.0f;
+            return;
+        }
 
         if (move.LengthSquared > 0)
             move = Vector3.Normalize(move) * Camera.Speed * 1f;

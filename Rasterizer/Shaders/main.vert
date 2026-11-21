@@ -19,11 +19,13 @@ out vec3 vTangent;
 out float vTangentHandedness;
 out vec4 vTileRect;
 out vec2 vBiomeData;
+out float vViewDepth;
 
 void main()
 {
     vec4 world = model * vec4(aPosition, 1.0);
     vWorldPos = world.xyz;
+    vViewDepth = -(view * world).z;
 
     gl_Position = projection * view * world;
 
