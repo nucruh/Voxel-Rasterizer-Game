@@ -11,7 +11,7 @@ public class Camera
 
     public float Speed = 8f;
     public float Sensitivity = 0.15f;
-    public float RotationSmoothing = 24f;
+    public float RotationSmoothing = 80f;
 
     public Camera(Vector3 position, Vector3 target)
     {

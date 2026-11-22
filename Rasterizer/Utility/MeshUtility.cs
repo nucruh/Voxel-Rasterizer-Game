@@ -237,6 +237,19 @@ public static class MeshUtility
             Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(yawDegrees)),
             new Vector3(scale));
     }
+    public static void AddCube(List<float> v, Vector3 position, Vector3 size, ushort biomeData = DefaultBiomeData)
+    {
+        Vector3 half = size * 0.5f;
+
+        AddQuad(v, Vector3.UnitX, position + new Vector3(half.X, 0, 0), (ushort)1, true, size: size.Y, biomeData: biomeData);
+        AddQuad(v, -Vector3.UnitX, position + new Vector3(-half.X, 0, 0), (ushort)1, true, size: size.Y, biomeData: biomeData);
+
+        AddQuad(v, Vector3.UnitY, position + new Vector3(0, half.Y, 0), (ushort)1, true, size: size.X, biomeData: biomeData);
+        AddQuad(v, -Vector3.UnitY, position + new Vector3(0, -half.Y, 0), (ushort)1, true, size: size.X, biomeData: biomeData);
+
+        AddQuad(v, Vector3.UnitZ, position + new Vector3(0, 0, half.Z), (ushort)1, true, size: size.X, biomeData: biomeData);
+        AddQuad(v, -Vector3.UnitZ, position + new Vector3(0, 0, -half.Z), (ushort)1, true, size: size.X, biomeData: biomeData);
+    }
 
     public static int GetTotalTriangles(Mesh[] meshes)
     {

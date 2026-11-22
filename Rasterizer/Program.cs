@@ -109,9 +109,9 @@ public class Game : GameWindow
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.Off,
+            Vsync = VSyncMode.On,
             WindowBorder = WindowBorder.Hidden,
-            NumberOfSamples = 0
+            NumberOfSamples = 8
         })
     {
     }

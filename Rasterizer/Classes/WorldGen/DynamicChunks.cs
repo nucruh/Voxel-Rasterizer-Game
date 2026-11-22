@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 public static class DynamicChunks
 {
-    private const int LOAD_RADIUS = 4;
+    private const int LOAD_RADIUS = 6;
     private const int UNLOAD_RADIUS = LOAD_RADIUS + 2;
 
     private sealed class ChunkBuildResult

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using OpenTK.Mathematics;
 using System.Collections.Concurrent;
+using Generations;
 
 public struct BlockPlacement
 {
@@ -26,10 +27,10 @@ public class Chunk
     public Mesh? foliageMesh;
     public ushort[] blockData = new ushort[Size * Size * Size];
     public ushort[] biomeUV = new ushort[Size * Size];
-    private int foliageCount = 0;
+    public int foliageCount = 0;
 
-    private List<float> vertices = new List<float>();
-    private List<float> foliageVertices = new List<float>();
+    public List<float> vertices = new List<float>();
+    public List<float> foliageVertices = new List<float>();
     public List<BlockPlacement> overflowBlocks = new List<BlockPlacement>();
 
     // reused between builds so we don't allocate per slice / per chunk
@@ -41,7 +42,7 @@ public class Chunk
         Position = position;
     }
 
-    const ushort AIR = 0, STONE = 3, GRASS = 2, GRASS_CARD = 64511, DIRT = 1;
+    public static readonly ushort AIR = 0, STONE = 3, GRASS = 2, GRASS_CARD = 64511, DIRT = 1;
 
     // tweak these
     const float BaseHeight = 32f;
@@ -81,7 +82,7 @@ public class Chunk
         return ((h ^ (h >> 16)) & 0xFFFF) / 65535f;
     }
 
-    private void SetBlock(int x, int y, int z, ushort id, bool onlyIfAir = false)
+    public void SetBlock(int x, int y, int z, ushort id, bool onlyIfAir = false)
     {
         if (x >= 0 && x < Size &&
             y >= 0 && y < Size &&
@@ -216,16 +217,16 @@ public class Chunk
                 {
                     if (treeSpots[_x, _y, _z] != 1)
                         continue;
-                       
-                    GenerateOak(_x, _y, _z);
+
+                    OakTreeGeneration.GenerateOak(this, _x, _y, _z);
 
                 }
     }
 
-    const int LogId = 4;
-    const int LeafId = 64512;
+    public static readonly ushort LogId = 4;
+    public static readonly ushort LeafId = 64512;
 
-    static int HashPosition(int seed, int x, int y, int z)
+    public static int HashPosition(int seed, int x, int y, int z)
     {
         unchecked
         {
@@ -238,246 +239,16 @@ public class Chunk
         }
     }
 
-    void GenerateOak(int x, int y, int z)
-    {
-        var rng = new Random(HashPosition(Game._worldSeed, x, y, z));
-
-        int trunkHeight = rng.Next(7, 11);
-
-        // Trunk
-        for (int i = 0; i < trunkHeight; i++)
-            SetBlock(x, y + i, z, LogId);
-
-        // Root flare at the base
-        foreach (var (dx, dz) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
-            if (rng.NextDouble() < 0.6)
-            {
-                SetBlock(x + dx, y, z + dz, LogId);
-                if (rng.NextDouble() < 0.3)
-                    SetBlock(x + dx, y + 1, z + dz, LogId);
-            }
-
-        // Branches: start in the upper half of the trunk, spread outward and rise
-        int branchCount = rng.Next(4, 7);
-        double angleOffset = rng.NextDouble() * Math.PI * 2;
-
-        for (int b = 0; b < branchCount; b++)
-        {
-            // Evenly spread angles with some jitter, so branches don't clump
-            double angle = angleOffset + b * (Math.PI * 2 / branchCount)
-                           + (rng.NextDouble() - 0.5) * 0.6;
-
-            int startY = y + (int)(trunkHeight * (0.5 + rng.NextDouble() * 0.4));
-            int length = rng.Next(3, 6);
-            double rise = 0.4 + rng.NextDouble() * 0.4; // vertical blocks per horizontal block
-
-            double dirX = Math.Cos(angle);
-            double dirZ = Math.Sin(angle);
-
-            int bx = x, by = startY, bz = z;
-            double fy = startY;
-
-            for (int s = 1; s <= length; s++)
-            {
-                bx = x + (int)Math.Round(dirX * s);
-                bz = z + (int)Math.Round(dirZ * s);
-                fy += rise;
-                by = (int)Math.Round(fy);
-
-                SetBlock(bx, by, bz, LogId);
-
-                // Fill diagonal gaps so the branch stays connected
-                SetBlock(bx, by - 1, bz, LogId);
-            }
-
-            // Leaf cluster at the branch tip
-            LeafBlob(bx, by + 1, bz, rng.Next(3, 6), rng);
-        }
-
-        // Main crown on top of the trunk
-        LeafBlob(x, y + trunkHeight, z, 3, rng);
-    }
-
-    void LeafBlob(int cx, int cy, int cz, int radius, Random rng)
-    {
-        double ry = radius * 0.7; // flattened vertically, like a real oak crown
-
-        for (int dx = -radius; dx <= radius; dx++)
-            for (int dy = -(int)Math.Ceiling(ry); dy <= (int)Math.Ceiling(ry); dy++)
-                for (int dz = -radius; dz <= radius; dz++)
-                {
-                    double d = (dx * dx) / (double)(radius * radius)
-                             + (dy * dy) / (ry * ry)
-                             + (dz * dz) / (double)(radius * radius);
-
-                    if (d > 1.0) continue;
-
-                    // Ragged edges: randomly drop outer voxels
-                    if (d > 0.65 && rng.NextDouble() < 0.4) continue;
-
-                    SetBlock(cx + dx, cy + dy, cz + dz, LeafId, true);
-                }
-    }
-
     public int GetLocalIdInChunk(int x, int y, int z)
     {
         return x + y * Size + z * Size * Size;
     }
 
-    private void GrassCardGen(int x, int y, int z)
-    {
-        Vector3 _BP = new Vector3(Position.X + x, Position.Y + y, Position.Z + z);
-        foliageCount++;
-        float randomOffset = (float)(Random.Shared.NextDouble() * 0.3f - 0.15f);
-        Vector3 ranOffsetV = new Vector3(randomOffset, 0, randomOffset);
-
-        int hash = HashPosition(Game._worldSeed, x, y, z);
-
-        var rng = new Random(hash);
-        float value = rng.NextSingle();
-
-        ushort target = value < 0.5f ? (ushort)64511 : (ushort)64513; // grass_card or short_grass_card
-        target = value < 0.1f ? (ushort)64514 : target; // dandelion
-
-        float size_mod = 0.0f;
-
-        if(target == 64511)
-        {
-            size_mod = 0.414f;
-        }
-
-        for (int j = 0; j < 2; j++)
-        {
-            float angle = j * MathHelper.PiOver2 + 45f;
-
-            Vector3 look = Vector3.TransformNormal(
-                new Vector3(1, 0, 0),
-                Matrix4.CreateRotationY(angle));
-
-            float offsetX = (float)(Random.Shared.NextDouble() * 0.04f - 0.02f);
-            float offsetZ = (float)(Random.Shared.NextDouble() * 0.04f - 0.02f);
-
-            Vector3 offset = _BP - ranOffsetV + new Vector3(offsetX, size_mod / 2.0f, offsetZ);
-
-            MeshUtility.AddQuad(
-                foliageVertices,
-                look,
-                offset,
-                target,
-                skipRecenter: true,
-                heightPaint: true,
-                upNormal: true,
-                minWeight: 0.0f,
-                maxWeight: 1.0f,
-                size: 1.0f + size_mod,
-                biomeData: GetBiomeUV(x, z));
-        }
-    }
-
-    private ushort GetBiomeUV(int x, int z)
+    public ushort GetBiomeUV(int x, int z)
     {
         x = Math.Clamp(x, 0, Size - 1);
         z = Math.Clamp(z, 0, Size - 1);
         return biomeUV[x + z * Size];
-    }
-
-    private void LeafBlockGen(int x, int y, int z)
-    {
-        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
-        foliageCount++;
-
-        for (int i = 0; i < 3; i++)
-        {
-            float pitch = Random.Shared.NextSingle() * MathF.PI;
-            float yaw = Random.Shared.NextSingle() * MathF.Tau;
-            float roll = Random.Shared.NextSingle() * MathF.Tau;
-
-            Quaternion rotation =
-                Quaternion.FromAxisAngle(Vector3.UnitX, pitch) *
-                Quaternion.FromAxisAngle(Vector3.UnitY, yaw) *
-                Quaternion.FromAxisAngle(Vector3.UnitZ, roll);
-
-            Vector3 look = Vector3.Transform(Vector3.UnitZ, rotation);
-
-            float scale = 0.9f + Random.Shared.NextSingle() * 0.4f;
-
-            MeshUtility.AddQuad(
-                foliageVertices,
-                look,
-                _BP,
-                "oak_leaf",
-                true, true, true,
-                0.2f, 0.2f, scale,
-                GetBiomeUV(x, z)
-                );
-        }
-    }
-
-    private void FernGen(int x, int y, int z)
-    {
-        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
-        foliageCount++;
-
-        for (int i = 0; i < 12; i++)
-        {
-            float yaw = Random.Shared.NextSingle() * MathF.Tau;
-            float pitch = 0.4f + Random.Shared.NextSingle() * 0.9f;
-
-            Quaternion rotation =
-                Quaternion.FromAxisAngle(Vector3.UnitY, yaw) *
-                Quaternion.FromAxisAngle(Vector3.UnitX, pitch);
-
-            Vector3 look = Vector3.Transform(Vector3.UnitZ, rotation);
-            Vector3 up = Vector3.Transform(Vector3.UnitY, rotation);
-
-            float height = 0.65f + Random.Shared.NextSingle() * 0.5f;
-            float width = 0.65f + Random.Shared.NextSingle() * 0.4f;
-
-            MeshUtility.AddQuadAnchored(
-                foliageVertices,
-                look,
-                _BP + Vector3.UnitY * -0.5f,
-                "fern",
-                width,
-                height,
-                true, true,
-                0.0f, 0.2f,
-                GetBiomeUV(x, z)
-                );
-        }
-
-        //MeshUtility.AddModel(foliageVertices, "andesite_pebble_1", _BP, 90f);
-    }
-
-    private void PebbleGen(int x, int y, int z)
-    {
-        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
-
-        MeshUtility.AddModel(vertices, "andesite_pebble_1", _BP, 90f);
-    }
-
-    private void PorciniGen(int x, int y, int z)
-    {
-        Vector3 _BP = new(Position.X + x, Position.Y + y, Position.Z + z);
-
-        Random rng = new(HashCode.Combine((int)_BP.X, (int)_BP.Y, (int)_BP.Z));
-
-        const float PivotHeight = 0.5f; // "origin" Y from the model json (pivot height above the base)
-
-        int count = rng.Next(1, 4);
-
-        for (int i = 0; i < count; i++)
-        {
-            float scale = 0.6f + rng.NextSingle() * 0.6f; // 0.6x .. 1.2x
-            float yaw = rng.NextSingle() * 360f;
-
-            Vector3 offset = new(
-                (rng.NextSingle() - 0.5f) * 0.8f,
-                PivotHeight * (scale - 1f), // keeps the base at the same height for any scale
-                (rng.NextSingle() - 0.5f) * 0.8f);
-
-            MeshUtility.AddModel(vertices, "mushroom_porcini_1", _BP + offset, yaw, scale);
-        }
     }
 
     public void CreateMesh(ConcurrentDictionary<Vector3i, Chunk> chunks)
@@ -516,15 +287,15 @@ public class Chunk
                         continue; // solid block are handled by greedy meshin
 
                     if (block == 64511) // grass card
-                        GrassCardGen(x, y, z);
+                        GrassGeneration.GrassCardGen(this, x, y, z);
                     else if (block == 64512) // oak leaf
-                        LeafBlockGen(x, y, z);
+                        OakTreeGeneration.LeafBlockGen(this, x, y, z);
                     else if (block == 64515) // fern
-                        FernGen(x, y, z);
+                        FernGeneration.FernGen(this, x, y, z);
                     else if (block == 64516) // pebble
-                        PebbleGen(x, y, z);
+                        GroundPebbleGeneration.PebbleGen(this, x, y, z);
                     else if (block == 64517) // porcini shroom
-                        PorciniGen(x, y, z);
+                        MushroomGeneration.PorciniGen(this, x, y, z);
 
                 }
 
@@ -563,23 +334,12 @@ public class Chunk
 
     private ushort GetBlock(int x, int y, int z, Chunk[] neighborChunks)
     {
-        if (x >= Size)
-            return neighborChunks[0]?.GetBlock(x - Size, y, z, null!) ?? 0;
-
-        if (x < 0)
-            return neighborChunks[1]?.GetBlock(x + Size, y, z, null!) ?? 0;
-
-        if (y >= Size)
-            return neighborChunks[2]?.GetBlock(x, y - Size, z, null!) ?? 0;
-
-        if (y < 0)
-            return neighborChunks[3]?.GetBlock(x, y + Size, z, null!) ?? 0;
-
-        if (z >= Size)
-            return neighborChunks[4]?.GetBlock(x, y, z - Size, null!) ?? 0;
-
-        if (z < 0)
-            return neighborChunks[5]?.GetBlock(x, y, z + Size, null!) ?? 0;
+        if (x >= Size) return neighborChunks[0]?.GetBlock(x - Size, y, z, null!) ?? 0;
+        if (x < 0) return neighborChunks[1]?.GetBlock(x + Size, y, z, null!) ?? 0;
+        if (y >= Size) return neighborChunks[2]?.GetBlock(x, y - Size, z, null!) ?? 0;
+        if (y < 0) return neighborChunks[3]?.GetBlock(x, y + Size, z, null!) ?? 0;
+        if (z >= Size) return neighborChunks[4]?.GetBlock(x, y, z - Size, null!) ?? 0;
+        if (z < 0) return neighborChunks[5]?.GetBlock(x, y, z + Size, null!) ?? 0;
 
         return blockData[x + y * Size + z * Size * Size];
     }
