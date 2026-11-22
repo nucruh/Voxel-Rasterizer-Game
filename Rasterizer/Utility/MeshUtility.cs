@@ -237,22 +237,64 @@ public static class MeshUtility
             Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(yawDegrees)),
             new Vector3(scale));
     }
+    // Like AddQuad, but with independent width/height. 'look' = outward face direction.
+    public static void AddQuadRect(
+        List<float> v,
+        Vector3 look,
+        Vector3 center,        // center of the face itself (no recentering)
+        float width,
+        float height,
+        ushort texture,
+        ushort biomeData = DefaultBiomeData)
+    {
+        look = Vector3.Normalize(look);
+
+        Vector3 reference = MathF.Abs(look.Y) > 0.999f ? Vector3.UnitZ : Vector3.UnitY;
+        Vector3 rightDir = Vector3.Normalize(Vector3.Cross(reference, look));
+        Vector3 upDir = Vector3.Normalize(Vector3.Cross(look, rightDir));
+
+        Vector3 right = rightDir * 0.5f * width;
+        Vector3 up = upDir * 0.5f * height;
+
+        Vector3[] pos = { -right - up, -right + up, right + up, -right - up, right + up, right - up };
+
+        float handedness = Vector3.Dot(Vector3.Cross(look, rightDir), upDir) < 0 ? -1 : 1;
+        Vector4 tangentData = new(rightDir, handedness);
+
+        string tex = BlockRegistry.Blocks[texture].Textures[0];
+
+        for (int i = 0; i < 6; i++)
+        {
+            AddVertex(v, pos[i] + center, look, Game._atlas.Map(tex, QuadUVs[i], look),
+                      tangentData, 0.0f, biomeData: biomeData);
+        }
+    }
+
     public static void AddCube(List<float> v, Vector3 position, Vector3 size, ushort biomeData = DefaultBiomeData)
     {
-        Vector3 half = size * 0.5f;
+        Vector3 h = size * 0.5f;
 
-        AddQuad(v, Vector3.UnitX, position + new Vector3(half.X, 0, 0), (ushort)1, true, size: size.Y, biomeData: biomeData);
-        AddQuad(v, -Vector3.UnitX, position + new Vector3(-half.X, 0, 0), (ushort)1, true, size: size.Y, biomeData: biomeData);
+        // +X / -X faces span Z (width) and Y (height)
+        AddQuadRect(v, Vector3.UnitX, position + new Vector3(h.X, 0, 0), size.Z, size.Y, 1, biomeData);
+        AddQuadRect(v, -Vector3.UnitX, position + new Vector3(-h.X, 0, 0), size.Z, size.Y, 1, biomeData);
 
-        AddQuad(v, Vector3.UnitY, position + new Vector3(0, half.Y, 0), (ushort)1, true, size: size.X, biomeData: biomeData);
-        AddQuad(v, -Vector3.UnitY, position + new Vector3(0, -half.Y, 0), (ushort)1, true, size: size.X, biomeData: biomeData);
+        // +Y / -Y faces span X (width) and Z (height)
+        AddQuadRect(v, Vector3.UnitY, position + new Vector3(0, h.Y, 0), size.X, size.Z, 1, biomeData);
+        AddQuadRect(v, -Vector3.UnitY, position + new Vector3(0, -h.Y, 0), size.X, size.Z, 1, biomeData);
 
-        AddQuad(v, Vector3.UnitZ, position + new Vector3(0, 0, half.Z), (ushort)1, true, size: size.X, biomeData: biomeData);
-        AddQuad(v, -Vector3.UnitZ, position + new Vector3(0, 0, -half.Z), (ushort)1, true, size: size.X, biomeData: biomeData);
+        // +Z / -Z faces span X (width) and Y (height)
+        AddQuadRect(v, Vector3.UnitZ, position + new Vector3(0, 0, h.Z), size.X, size.Y, 1, biomeData);
+        AddQuadRect(v, -Vector3.UnitZ, position + new Vector3(0, 0, -h.Z), size.X, size.Y, 1, biomeData);
     }
+
+
 
     public static int GetTotalTriangles(Mesh[] meshes)
     {
         return meshes.Sum(m => m.TriangleCount);
     }
+
+
+
+
 }

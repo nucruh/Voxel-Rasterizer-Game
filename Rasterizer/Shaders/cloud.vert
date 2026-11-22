@@ -1,0 +1,21 @@
+#version 430 core
+
+layout (location = 0) in vec3 aPosition;
+layout (location = 1) in vec3 aNormal;
+
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+out vec3 vWorldNormal;
+out vec3 vWorldPos;
+
+void main()
+{
+	vec4 worldPosition = model * vec4(aPosition, 1.0);
+	vWorldNormal = normalize(mat3(model) * aNormal);
+	gl_Position = projection * view * worldPosition;
+
+	vec4 worldPos = model * vec4(aPosition, 1.0);
+	vWorldPos = worldPos.xyz;
+}

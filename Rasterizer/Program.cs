@@ -22,6 +22,7 @@ public class Game : GameWindow
     private Shader _shadowShader = null!;
     private Shader _foliageShader = null!;
     private Shader _skyShader = null!;
+    private Shader _cloudShader = null!;
     private Shader _postProcessShader = null!;
 
 
@@ -46,6 +47,7 @@ public class Game : GameWindow
 
     #region Bindings
     private int _skyVao;
+    private readonly List<Mesh> _cloudMeshes = new();
     private int _sceneFbo;
     private int _sceneColor;
     private int _sceneDepth;
@@ -109,9 +111,9 @@ public class Game : GameWindow
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.On,
+            Vsync = VSyncMode.Off,
             WindowBorder = WindowBorder.Hidden,
-            NumberOfSamples = 8
+            NumberOfSamples = 0
         })
     {
     }
@@ -172,6 +174,7 @@ public class Game : GameWindow
         _foliageShader = new Shader("Shaders/foliage.vert", "Shaders/foliage.frag");
         _shadowShader = new Shader("Shaders/shadow.vert", "Shaders/shadow.frag");
         _skyShader = new Shader("Shaders/sky.vert", "Shaders/sky.frag");
+        _cloudShader = new Shader("Shaders/cloud.vert", "Shaders/cloud.frag");
         _postProcessShader = new Shader("Shaders/postprocess.vert", "Shaders/postprocess.frag");
 
         _atlas = new TextureAtlas(TextureNames.DiffuseFolder, TextureNames.Names, 48);
@@ -182,6 +185,7 @@ public class Game : GameWindow
 
         Models.Initialize();
         WorldPregeneration.Pregenerate();
+        GenerateCloudMeshes();
 
         _shadowCascades = new ShadowMap[CascadeCount];
         for (int i = 0; i < CascadeCount; i++)
@@ -689,6 +693,30 @@ public class Game : GameWindow
         GL.DepthMask(true);
         GL.Enable(EnableCap.DepthTest);
 
+        // Render generated cloud vertices over the procedural sky. Clouds do
+        // not write depth so terrain rendered afterward can occlude them.
+        _cloudShader.Use();
+        _cloudShader.SetMatrix4("view", view);
+        _cloudShader.SetMatrix4("projection", projection);
+        _cloudShader.SetMatrix4("model", Matrix4.Identity);
+        _cloudShader.SetVector3("lightDir", _lightDir);
+        _cloudShader.SetVector3("uCamPos", _camera.Position);
+        _cloudShader.SetFloat("time", (float)_time);
+
+        GL.Enable(EnableCap.CullFace);
+        GL.Enable(EnableCap.Blend);
+        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+        GL.DepthMask(false);
+
+        foreach (Mesh cloudMesh in _cloudMeshes)
+        {
+            if (cloudMesh.Active)
+                cloudMesh.Draw();
+        }
+
+        GL.DepthMask(true);
+        GL.Disable(EnableCap.Blend);
+
         /*
         _lightDir = Vector3.Transform(
             _lightDir,
@@ -916,7 +944,11 @@ public class Game : GameWindow
         foreach (ShadowMap shadow in _shadowCascades)
             shadow.Dispose();
         _shadowShader.Dispose();
+        _cloudShader.Dispose();
         _postProcessShader.Dispose();
+
+        foreach (Mesh cloudMesh in _cloudMeshes)
+            cloudMesh.Dispose();
 
         GL.DeleteFramebuffer(_sceneFbo);
         GL.DeleteTexture(_sceneColor);
@@ -927,5 +959,19 @@ public class Game : GameWindow
         _foliageShader.Dispose();
         DisposeText();
         base.OnUnload();
+    }
+
+    private void GenerateCloudMeshes()
+    {
+        List<float> vertices = new();
+
+        // Center the cloud field over the world instead of the origin corner.
+        float worldSize = WorldChunks * Chunk.Size;
+        Vector3 center = new(worldSize * 0.5f, 0.0f, worldSize * 0.5f);
+
+        CloudGeneration.GenerateClouds(vertices, center, _worldSeed);
+
+        if (vertices.Count > 0)
+            _cloudMeshes.Add(new Mesh(vertices.ToArray()));
     }
 }
