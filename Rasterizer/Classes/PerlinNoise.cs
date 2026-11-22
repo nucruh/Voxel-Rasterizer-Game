@@ -1,9 +1,9 @@
-﻿
+﻿using System.Collections.Concurrent;
 using System;
 
 public static class PerlinNoise
 {
-    private static readonly Dictionary<int, int[]> Permutations = new();
+    private static readonly ConcurrentDictionary<int, int[]> Permutations = new();
 
     private static int[] GetPermutation(int seed)
     {

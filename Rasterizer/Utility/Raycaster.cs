@@ -2,7 +2,7 @@
 
 public struct RaycastHit
 {
-    public Vector3i BlockPosition;
+    public Vector3i BlockPosition; // world position 
     public Vector3i Normal;
     public Vector3 Position;
     public ushort BlockId;

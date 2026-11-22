@@ -4,11 +4,9 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using static BitmapFontRenderer;
 using static MeshUtility;
 using static EngineSettings;
-using static FileRead;
 using GameWindow = OpenTK.Windowing.Desktop.GameWindow;
 
 using var game = new Game();
@@ -60,6 +58,7 @@ public class Game : GameWindow
 
     public static Camera _camera = null!;
     public static KeyboardState _keyboardState = null!;
+    public static MouseState _mouseState = null!;
 
     public static List<Mesh> _sceneObjects = new List<Mesh>();
     public static ConcurrentDictionary<Vector3i, Chunk> _chunks = new();
@@ -111,7 +110,7 @@ public class Game : GameWindow
             Title = "Rasterizer",
             APIVersion = new Version(4, 3),
             Profile = ContextProfile.Core,
-            Vsync = VSyncMode.Off,
+            Vsync = VSyncMode.On,
             WindowBorder = WindowBorder.Hidden,
             NumberOfSamples = 0
         })
@@ -292,6 +291,8 @@ public class Game : GameWindow
             },
 
         };
+
+        GameWorld.Load();
     }
 
     private static Matrix4 BuildCascadeLightSpace(
@@ -686,6 +687,7 @@ public class Game : GameWindow
         _skyShader.SetMatrix4("invProjection", Matrix4.Invert(projection));
         _skyShader.SetMatrix4("invView", Matrix4.Invert(view));
         _skyShader.SetVector3("lightDir", _lightDir);
+        _skyShader.SetFloat("time", (float)_time);
 
         GL.BindVertexArray(_skyVao);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
@@ -876,8 +878,8 @@ public class Game : GameWindow
 
         //RenderHud(drawCalls);
 
-        var m = MouseState;
-        Ui.SetMouse(m.X, m.Y, m.IsButtonDown(MouseButton.Left));
+        _mouseState = MouseState;
+        Ui.SetMouse(_mouseState.X, _mouseState.Y, _mouseState.IsButtonDown(MouseButton.Left));
 
         if(perfMenuVisible)
         {

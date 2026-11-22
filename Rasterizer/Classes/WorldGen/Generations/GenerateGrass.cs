@@ -17,12 +17,13 @@ public static class GrassGeneration
         var rng = new Random(hash);
         float value = rng.NextSingle();
 
-        ushort target = value < 0.5f ? (ushort)64511 : (ushort)64513; // grass_card or short_grass_card
-        target = value < 0.1f ? (ushort)64514 : target; // dandelion
+        ushort target = value < 0.6f ? (ushort)64511 : (ushort)64513; // grass_card or short_grass_card
+        target = value < 0.3f ? (ushort)64518 : target; // tall_grass_card
+        target = value < 0.05f ? (ushort)64514 : target; // dandelion
 
         float size_mod = 0.0f;
 
-        if (target == 64511)
+        if (target == 64511 || target == 64518)
         {
             size_mod = 0.414f;
         }
@@ -49,7 +50,7 @@ public static class GrassGeneration
                 heightPaint: true,
                 upNormal: true,
                 minWeight: 0.0f,
-                maxWeight: 1.0f,
+                maxWeight: 0.8f,
                 size: 1.0f + size_mod,
                 biomeData: chunk.GetBiomeUV(x, z));
         }

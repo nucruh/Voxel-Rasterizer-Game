@@ -122,7 +122,7 @@ public static class DynamicChunks
         if (chunksToGenerate.Count != 0)
         {
             string batchPositions = string.Join(", ", chunksToGenerate.Select(position => position.ToString()));
-            Console.WriteLine($"[Chunks] Starting generation: count={chunksToGenerate.Count}, queuedRemaining={Game._chunkGenerateQueue.Count}, center={posChunk}, positions=[{batchPositions}], thread={Environment.CurrentManagedThreadId}.");
+            //Console.WriteLine($"[Chunks] Starting generation: count={chunksToGenerate.Count}, queuedRemaining={Game._chunkGenerateQueue.Count}, center={posChunk}, positions=[{batchPositions}], thread={Environment.CurrentManagedThreadId}.");
             _generationTask = GenerateChunksAsync(chunksToGenerate.ToArray());
         }
     }
@@ -131,9 +131,9 @@ public static class DynamicChunks
     {
         try
         {
-            Console.WriteLine($"[Chunks] Generation scheduled: count={chunksToGenerate.Length}, requestThread={Environment.CurrentManagedThreadId}.");
+            //Console.WriteLine($"[Chunks] Generation scheduled: count={chunksToGenerate.Length}, requestThread={Environment.CurrentManagedThreadId}.");
             ChunkBuildResult result = await Task.Run(() => BuildChunks(chunksToGenerate));
-            Console.WriteLine($"[Chunks] Worker finished: generated={result.GeneratedChunkCount}, meshes={result.ChunksToMesh.Count}, buildTime={result.ElapsedMilliseconds:F1}ms, thread={Environment.CurrentManagedThreadId}.");
+            //Console.WriteLine($"[Chunks] Worker finished: generated={result.GeneratedChunkCount}, meshes={result.ChunksToMesh.Count}, buildTime={result.ElapsedMilliseconds:F1}ms, thread={Environment.CurrentManagedThreadId}.");
             _completedBuilds.Enqueue(result);
         }
         catch (Exception exception)
@@ -151,7 +151,7 @@ public static class DynamicChunks
 
     private static ChunkBuildResult BuildChunks(Vector3i[] chunksToGenerate)
     {
-        Console.WriteLine($"[Chunks] BuildChunks executing: count={chunksToGenerate.Length}, workerThread={Environment.CurrentManagedThreadId}.");
+        //Console.WriteLine($"[Chunks] BuildChunks executing: count={chunksToGenerate.Length}, workerThread={Environment.CurrentManagedThreadId}.");
         Stopwatch stopwatch = Stopwatch.StartNew();
         ConcurrentBag<Chunk> generatedChunks = new();
 

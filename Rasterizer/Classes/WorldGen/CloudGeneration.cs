@@ -38,7 +38,7 @@ public class Clouds
 public class CloudGeneration
 {
     const float Range = 1024f;        // half-extent of the cloud field
-    const float Step = 28f;           // spacing of the noise sample grid
+    const float Step = 24f;           // spacing of the noise sample grid
     const float BaseY = 300f;
 
     const float CoverScale = 0.006f;  // lower = bigger cloud masses

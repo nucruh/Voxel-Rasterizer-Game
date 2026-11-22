@@ -9,7 +9,7 @@ public class Camera
     private float _targetYaw;
     private float _targetPitch;
 
-    public float Speed = 8f;
+    public float Speed = 4.5f;
     public float Sensitivity = 0.15f;
     public float RotationSmoothing = 80f;
 

@@ -261,6 +261,29 @@
         "hardnessLevel": 0,
         "model": ["mushroom_porcini_1"],
         "tags": []
+    },
+
+    {
+        "id": 64518,
+        "name": "tall_grass_card",
+        "displayName": "Tall Grass Card",
+        "description": "A type of grass card",
+        "itemSize": "small",
+
+        "albedo": {
+            "all": "tall_grass_card"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": false,
+        "foliage": true,
+        "transparent": true,
+        
+        "hardnessLevel": 0,
+        "model": null,
+        "tags": ["replaceable"]
     }
 
 ]
