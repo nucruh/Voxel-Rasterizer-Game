@@ -212,10 +212,18 @@ public static class DynamicChunks
             result.GeneratedChunkCount);
 
         foreach (Chunk chunk in result.ChunksToMesh)
-            DisposeChunkMeshes(chunk);
+        {
+            // A user edit may have happened after the worker read the chunk.
+            // Never replace a newer mesh with that stale build.
+            if (chunk.BuiltRevision == chunk.MeshRevision)
+                DisposeChunkMeshes(chunk);
+        }
 
         foreach (Chunk chunk in result.ChunksToMesh)
         {
+            if (chunk.BuiltRevision != chunk.MeshRevision)
+                continue;
+
             chunk.ApplyMesh();
             if (chunk.mesh != null)
                 Game._sceneObjects.Add(chunk.mesh);
@@ -253,6 +261,23 @@ public static class DynamicChunks
         }
     }
 
+    public static void RebuildChunk(Chunk chunk, ushort blockId = 0)
+    {
+        chunk.CreateMesh(Game._chunks, blockId);
+
+        if (chunk.mesh != null)
+            Game._sceneObjects.Remove(chunk.mesh);
+        if (chunk.foliageMesh != null)
+            Game._sceneObjects.Remove(chunk.foliageMesh);
+
+        chunk.ApplyMesh(blockId);
+
+        if (chunk.mesh != null)
+            Game._sceneObjects.Add(chunk.mesh);
+        if (chunk.foliageMesh != null)
+            Game._sceneObjects.Add(chunk.foliageMesh);
+    }
+
     private static void DisposeChunkMeshes(Chunk chunk)
     {
         if (chunk.mesh != null)
@@ -269,4 +294,7 @@ public static class DynamicChunks
             chunk.foliageMesh = null;
         }
     }
+
+
+
 }

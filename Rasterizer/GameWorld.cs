@@ -173,28 +173,68 @@ public static class GameWorld
 
     private static void LeftClick()
     {
-        Vector3 origin = Camera.Position + new Vector3(0, EyeHeight * 0.5f, 0);
+        Vector3 origin = Camera.Position;
         Vector3 direction = Camera.Front;
-        if (VoxelRaycaster.Raycast(origin + VoxelOffset, direction, 5f, true, out var result))
-        {
-            Console.WriteLine($"Left-clicked on voxel at {result.BlockPosition}");
 
-            Chunk? chunk = Game._chunks.GetValueOrDefault(Vector3i.Divide(result.BlockPosition, Chunk.Size));
-            
+        if (VoxelRaycaster.Raycast(origin + VoxelOffset, direction, 5f, false, out var result))
+        {
+            Console.WriteLine($"Left-clicked on {result.BlockId} at {result.BlockPosition}");
+
+            Vector3i chunkPosition = new(
+                MathUtility.FloorDiv(result.BlockPosition.X, Chunk.Size),
+                MathUtility.FloorDiv(result.BlockPosition.Y, Chunk.Size),
+                MathUtility.FloorDiv(result.BlockPosition.Z, Chunk.Size)
+            );
+
+            Vector3i localPosition = new(
+                result.BlockPosition.X - chunkPosition.X * Chunk.Size,
+                result.BlockPosition.Y - chunkPosition.Y * Chunk.Size,
+                result.BlockPosition.Z - chunkPosition.Z * Chunk.Size
+            );
+
+            Chunk? chunk = Game._chunks.GetValueOrDefault(chunkPosition);
+
             if (chunk != null)
             {
                 chunk.SetBlock(
-                    result.BlockPosition.X % Chunk.Size,
-                    result.BlockPosition.Y % Chunk.Size,
-                    result.BlockPosition.Z % Chunk.Size,
+                    localPosition.X,
+                    localPosition.Y,
+                    localPosition.Z,
                     0);
 
-                //chunk.CreateMesh();
-            }
+                Console.WriteLine($"Removed block {result.BlockId} at {result.BlockPosition}, chunk {chunkPosition}");
+                DynamicChunks.RebuildChunk(chunk, result.BlockId);
 
+                // Rebuild neighboring chunks if the block is on a chunk boundary
+                Vector3i[] neighbors = [new(-1, 0, 0), new(1, 0, 0), new(0, -1, 0), new(0, 1, 0), new(0, 0, -1), new(0, 0, 1)];
+
+                foreach (var offset in neighbors)
+                {
+                    bool boundary =
+                        (offset.X < 0 && localPosition.X == 0) ||
+                        (offset.X > 0 && localPosition.X == Chunk.Size - 1) ||
+                        (offset.Y < 0 && localPosition.Y == 0) ||
+                        (offset.Y > 0 && localPosition.Y == Chunk.Size - 1) ||
+                        (offset.Z < 0 && localPosition.Z == 0) ||
+                        (offset.Z > 0 && localPosition.Z == Chunk.Size - 1);
+
+                    if (!boundary)
+                        continue;
+                    
+                    Chunk? neighbor = Game._chunks.GetValueOrDefault(chunkPosition + offset);
+
+                    if (neighbor != null)
+                    {
+                        DynamicChunks.RebuildChunk(neighbor, result.BlockId);
+                    }
+                }
+            }
             Audio.Play("break", 0.5f);
         }
     }
+
+
+
 
     public static void Heartbeat(float dt)
     {

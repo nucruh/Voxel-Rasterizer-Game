@@ -28,6 +28,10 @@ public class Chunk
     public ushort[] blockData = new ushort[Size * Size * Size];
     public ushort[] biomeUV = new ushort[Size * Size];
     public int foliageCount = 0;
+    public int MeshRevision { get; private set; }
+    public int BuiltRevision { get; private set; }
+
+    private readonly object _dataLock = new();
 
     public List<float> vertices = new List<float>();
     public List<float> foliageVertices = new List<float>();
@@ -84,28 +88,36 @@ public class Chunk
 
     public void SetBlock(int x, int y, int z, ushort id, bool onlyIfAir = false)
     {
-        if (x >= 0 && x < Size &&
-            y >= 0 && y < Size &&
-            z >= 0 && z < Size)
+        lock (_dataLock)
         {
-            int index = GetLocalIdInChunk(x, y, z);
-
-            if (!onlyIfAir || blockData[index] == AIR)
+            if (x >= 0 && x < Size &&
+                y >= 0 && y < Size &&
+                z >= 0 && z < Size)
             {
-                blockData[index] = id;
+                int index = GetLocalIdInChunk(x, y, z);
+
+                if (!onlyIfAir || blockData[index] == AIR)
+                {
+                    if (blockData[index] != id)
+                    {
+                        blockData[index] = id;
+                        MeshRevision++;
+                    }
+                }
             }
-                
-        }
-        else
-        {
-            overflowBlocks.Add(new BlockPlacement(
-                new Vector3(Position.X + x, Position.Y + y, Position.Z + z),
-                id, onlyIfAir));
+            else
+            {
+                overflowBlocks.Add(new BlockPlacement(
+                    new Vector3(Position.X + x, Position.Y + y, Position.Z + z),
+                    id, onlyIfAir));
+            }
         }
     }
 
     public void ApplyOverflow(ConcurrentDictionary<Vector3i, Chunk> chunks)
     {
+        lock (_dataLock)
+        {
         int cx = (int)(Position.X / Size);
         int cy = (int)(Position.Y / Size);
         int cz = (int)(Position.Z / Size);
@@ -140,10 +152,15 @@ public class Chunk
                         if (block.OnlyIfAir && blockData[index] != AIR)
                             continue;
 
-                        blockData[index] = block.BlockId;
+                        if (blockData[index] != block.BlockId)
+                        {
+                            blockData[index] = block.BlockId;
+                            MeshRevision++;
+                        }
 
                     }
                 }
+        }
     }
 
     private bool IsAllSame(out ushort id)
@@ -251,62 +268,75 @@ public class Chunk
         return biomeUV[x + z * Size];
     }
 
-    public void CreateMesh(ConcurrentDictionary<Vector3i, Chunk> chunks)
+    public void CreateMesh(ConcurrentDictionary<Vector3i, Chunk> chunks, ushort blockId = 0)
     {
-        Stopwatch sw = Stopwatch.StartNew();
-        vertices = new List<float>();
-
-        foliageCount = 0;
-        foliageVertices = new List<float>();
-
-        int _x = (int)(Position.X / Size);
-        int _y = (int)(Position.Y / Size);
-        int _z = (int)(Position.Z / Size);
-
-        if (IsAllSame(out ushort first) && first == AIR)
-            return; // truly empty chunk, nothing to draw
-
-        // order: +X, -X, +Y, -Y, +Z, -Z (matches GetBlock)
-        Chunk[] neighborChunks =
+        lock (_dataLock)
         {
-            chunks.GetValueOrDefault(new Vector3i(_x + 1, _y, _z))!,
-            chunks.GetValueOrDefault(new Vector3i(_x - 1, _y, _z))!,
-            chunks.GetValueOrDefault(new Vector3i(_x, _y + 1, _z))!,
-            chunks.GetValueOrDefault(new Vector3i(_x, _y - 1, _z))!,
-            chunks.GetValueOrDefault(new Vector3i(_x, _y, _z + 1))!,
-            chunks.GetValueOrDefault(new Vector3i(_x, _y, _z - 1))!
-        };
+            Stopwatch sw = Stopwatch.StartNew();
+            vertices = new List<float>();
 
-        // foliage still needs a per-block pass
-        for (int x = 0; x < Size; x++)
-            for (int y = 0; y < Size; y++)
-                for (int z = 0; z < Size; z++)
-                {
-                    ushort block = blockData[x + y * Size + z * Size * Size];
-                    if (block < 64511)
-                        continue; // solid block are handled by greedy meshin
+            int _x = (int)(Position.X / Size);
+            int _y = (int)(Position.Y / Size);
+            int _z = (int)(Position.Z / Size);
 
-                    if (block == 64511) // grass card
-                        GrassGeneration.GrassCardGen(this, x, y, z);
-                    else if (block == 64512) // oak leaf
-                        OakTreeGeneration.LeafBlockGen(this, x, y, z);
-                    else if (block == 64515) // fern
-                        FernGeneration.FernGen(this, x, y, z);
-                    else if (block == 64516) // pebble
-                        GroundPebbleGeneration.PebbleGen(this, x, y, z);
-                    else if (block == 64517) // porcini shroom
-                        MushroomGeneration.PorciniGen(this, x, y, z);
+            bool wasFoliageUpdate = BlockRegistry.Blocks[blockId].Foliage;
 
-                }
+            if (IsAllSame(out ushort first) && first == AIR)
+            {
+                BuiltRevision = MeshRevision;
+                return; // truly empty chunk, nothing to draw
+            }
 
-        // solid blocks: greedy meshed
-        GreedyMesh(vertices, neighborChunks);
+            // order: +X, -X, +Y, -Y, +Z, -Z (matches GetBlock)
+            Chunk[] neighborChunks =
+            {
+                chunks.GetValueOrDefault(new Vector3i(_x + 1, _y, _z))!,
+                chunks.GetValueOrDefault(new Vector3i(_x - 1, _y, _z))!,
+                chunks.GetValueOrDefault(new Vector3i(_x, _y + 1, _z))!,
+                chunks.GetValueOrDefault(new Vector3i(_x, _y - 1, _z))!,
+                chunks.GetValueOrDefault(new Vector3i(_x, _y, _z + 1))!,
+                chunks.GetValueOrDefault(new Vector3i(_x, _y, _z - 1))!
+            };
 
-        sw.Stop();
-        //Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
+            // foliage still needs a per-block pass
+            if (wasFoliageUpdate)
+            {
+                foliageCount = 0;
+                foliageVertices = new List<float>();
+
+                for (int x = 0; x < Size; x++)
+                    for (int y = 0; y < Size; y++)
+                        for (int z = 0; z < Size; z++)
+                        {
+                            ushort block = blockData[x + y * Size + z * Size * Size];
+                            if (block < 64511)
+                                continue; // solid block are handled by greedy meshin
+
+                            if (block == 64511) // grass card
+                                GrassGeneration.GrassCardGen(this, x, y, z);
+                            else if (block == 64512) // oak leaf
+                                OakTreeGeneration.LeafBlockGen(this, x, y, z);
+                            else if (block == 64515) // fern
+                                FernGeneration.FernGen(this, x, y, z);
+                            else if (block == 64516) // pebble
+                                GroundPebbleGeneration.PebbleGen(this, x, y, z);
+                            else if (block == 64517) // porcini shroom
+                                MushroomGeneration.PorciniGen(this, x, y, z);
+
+                        }
+            }
+
+
+            // solid blocks: greedy meshed
+            GreedyMesh(vertices, neighborChunks);
+            BuiltRevision = MeshRevision;
+
+            sw.Stop();
+            //Console.WriteLine($"Chunk {Position} generated in {sw.Elapsed.TotalMicroseconds} us");
+        }
     }
 
-    public void ApplyMesh()
+    public void ApplyMesh(ushort blockIdChanged = 0)
     {
         mesh?.Dispose();
 
@@ -317,17 +347,26 @@ public class Chunk
             mesh.Active = false;
         }
 
-        if (foliageCount != 0)
+        vertices.Clear();
+        vertices.TrimExcess();
+
+        bool wasFoliageUpdate = BlockRegistry.Blocks[blockIdChanged].Foliage;
+
+        if (wasFoliageUpdate)
         {
             foliageMesh?.Dispose();
-            foliageMesh = new Mesh(foliageVertices.ToArray(), true, Position);
+            foliageMesh = null;
+            if (foliageCount != 0)
+            {
+                foliageMesh = new Mesh(foliageVertices.ToArray(), true, Position);
+            }
+
+            foliageVertices.Clear();
+            foliageVertices.TrimExcess();
         }
 
 
-        vertices.Clear();
-        vertices.TrimExcess();
-        foliageVertices.Clear();
-        foliageVertices.TrimExcess();
+
         // make some code that disposes the list of vertices and foliageVertices after the mesh is applied, to free up memory, also somehow make it so that apply mesh is run immediately after create mesh for each chunk
         // dont wait for all to generate
     }

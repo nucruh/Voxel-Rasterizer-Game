@@ -1,5 +1,28 @@
 ﻿[
     {
+        "id": 0,
+        "name": "air",
+        "displayName": "Air",
+        "description": "MREeOw",
+        "itemSize": "tiny",
+
+        "albedo": {
+            "all": "dirt_loam"
+        },
+        "normal": {
+            "all": "normal"
+        },
+
+        "solid": false,
+        "foliage": true,
+        "transparent": true,
+
+        "hardnessLevel": 0,
+        "model": null,
+        "tags": [ "air" ]
+    },
+
+    {
         "id": 1,
         "name": "dirt_loam",
         "displayName": "Loam Dirt",
@@ -18,10 +41,10 @@
         "solid": true,
         "foliage": false,
         "transparent": false,
-        
+
         "hardnessLevel": 1,
         "model": null,
-        "tags": ["grass_spreadable"]
+        "tags": [ "grass_spreadable" ]
     },
 
     {
@@ -43,7 +66,7 @@
         "solid": true,
         "foliage": false,
         "transparent": false,
-        
+
         "hardnessLevel": 1,
         "model": null,
         "tags": []
@@ -68,7 +91,7 @@
         "solid": true,
         "foliage": false,
         "transparent": false,
-        
+
         "hardnessLevel": 5,
         "model": null,
         "tags": []
@@ -93,7 +116,7 @@
         "solid": true,
         "foliage": false,
         "transparent": false,
-        
+
         "hardnessLevel": 2,
         "model": null,
         "tags": []
@@ -119,10 +142,10 @@
         "solid": false,
         "foliage": true,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
         "model": null,
-        "tags": ["replaceable"]
+        "tags": [ "replaceable" ]
     },
 
     {
@@ -142,10 +165,10 @@
         "solid": false,
         "foliage": true,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
         "model": null,
-        "tags": ["replaceable"]
+        "tags": [ "replaceable" ]
     },
 
     {
@@ -165,10 +188,10 @@
         "solid": false,
         "foliage": true,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
         "model": null,
-        "tags": ["replaceable"]
+        "tags": [ "replaceable" ]
     },
 
     {
@@ -188,10 +211,10 @@
         "solid": false,
         "foliage": true,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
         "model": null,
-        "tags": ["replaceable"]
+        "tags": [ "replaceable" ]
     },
     {
         "id": 64515,
@@ -210,10 +233,10 @@
         "solid": false,
         "foliage": true,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
         "model": null,
-        "tags": ["replaceable"]
+        "tags": [ "replaceable" ]
     },
 
 
@@ -234,9 +257,9 @@
         "solid": false,
         "foliage": false,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
-        "model": ["andesite_pebble_1"],
+        "model": [ "andesite_pebble_1" ],
         "tags": []
     },
 
@@ -257,9 +280,9 @@
         "solid": false,
         "foliage": false,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
-        "model": ["mushroom_porcini_1"],
+        "model": [ "mushroom_porcini_1" ],
         "tags": []
     },
 
@@ -280,10 +303,10 @@
         "solid": false,
         "foliage": true,
         "transparent": true,
-        
+
         "hardnessLevel": 0,
         "model": null,
-        "tags": ["replaceable"]
+        "tags": [ "replaceable" ]
     }
 
 ]
